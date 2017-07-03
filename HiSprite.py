@@ -352,8 +352,6 @@ class Sprite(Listing):
         optimizationCount = 0
 
         order = list(range(self.height))
-        if self.double_buffer:
-            order = reversed(order)
 
         for row in order:
             cycleCount += self.rowStartCalculatorCode(row, baselabel)
@@ -412,41 +410,26 @@ class Sprite(Listing):
         return cycleCount, optimizationCount
 
     def rowStartCalculatorCode(self, row, baselabel):
-        if self.double_buffer:
-            first = self.height - 1
-        else:
-            first = 0
         self.out()
         self.comment_line("row %d" % row)
-        if self.double_buffer:
-            if row == first:
-                label = "%s_PAGELOOP" % (baselabel)
-                self.asm("ldx PARAM1")
-                self.asm("ldy #%d" % self.height)
-                self.label(label)
-                self.asm("lda HGRROWS_H1,x")
-                self.asm("pha")
-                self.asm("inx")
-                self.asm("dey")
-                self.asm("bne %s" % label)
-                self.asm("ldx PARAM1")
-                self.asm("pla")
-                cycles = 3
-            else:
-                self.asm("pla")
-                cycles = 4
+        if row == 0:
+            self.asm("ldx PARAM1")
+            cycles = 3
         else:
-            if row == 0:
-                self.asm("ldx PARAM1")
-                cycles = 3
-            else:
-                cycles = 0
-            self.asm("lda HGRROWS_H1+%d,x" % row)
-            cycles += 4
+            cycles = 0
+        self.asm("lda HGRROWS_H1+%d,x" % row)
+        cycles += 4
+        if self.double_buffer:
+            # HGRSELECT must be set to $00 or $60. The eor then turns the high
+            # byte of page 1 into either page1 or page 2 by flipping the 5th
+            # and 6th bit
+            self.asm("eor HGRSELECT")
+            cycles += 3
         self.asm("sta SCRATCH1")
         self.asm("lda HGRROWS_L+%d,x" % row)
         self.asm("sta SCRATCH0")
-        if row == first:
+        cycles += 3 + 4 + 3
+        if row == 0:
             self.asm("ldy PARAM0")
             self.asm("lda DIV%d_%d,y" % (self.screen.numShifts, self.screen.bitsPerPixel))
             self.asm("sta PARAM2")  # save the mod lookup; it doesn't change
@@ -455,7 +438,7 @@ class Sprite(Listing):
         else:
             self.asm("ldy PARAM2")
             cycles += 2
-        return cycles + 3 + 4 + 3;
+        return cycles;
 
 
 def shiftStringRight(string, shift, bitsPerPixel, fillerBit):
