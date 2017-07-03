@@ -412,11 +412,15 @@ class Sprite(Listing):
         return cycleCount, optimizationCount
 
     def rowStartCalculatorCode(self, row, baselabel):
+        if self.double_buffer:
+            first = self.height - 1
+        else:
+            first = 0
         self.out()
         self.comment_line("row %d" % row)
         if self.double_buffer:
-            if row == self.height - 1:
-                label = "%s_pageloop" % (baselabel)
+            if row == first:
+                label = "%s_PAGELOOP" % (baselabel)
                 self.asm("ldx PARAM1")
                 self.asm("ldy #%d" % self.height)
                 self.label(label)
@@ -425,11 +429,10 @@ class Sprite(Listing):
                 self.asm("inx")
                 self.asm("dey")
                 self.asm("bne %s" % label)
-                self.asm("dex")
+                self.asm("ldx PARAM1")
                 self.asm("pla")
                 cycles = 3
             else:
-                self.asm("dex")
                 self.asm("pla")
                 cycles = 4
         else:
@@ -443,7 +446,7 @@ class Sprite(Listing):
         self.asm("sta SCRATCH1")
         self.asm("lda HGRROWS_L+%d,x" % row)
         self.asm("sta SCRATCH0")
-        if row == 0:
+        if row == first:
             self.asm("ldy PARAM0")
             self.asm("lda DIV%d_%d,y" % (self.screen.numShifts, self.screen.bitsPerPixel))
             self.asm("sta PARAM2")  # save the mod lookup; it doesn't change

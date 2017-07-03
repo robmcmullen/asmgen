@@ -22,8 +22,7 @@ SCRATCH1        = $1a
 SPRITEPTR_L     = $1b
 SPRITEPTR_H     = $1c
 RENDERCOUNT     = $ce
-FRAMECOUNT      = $cf  ; used to determine page currently displayed: even -> page1, odd -> page2
-VISIBLEPAGE     = $d7
+DRAWPAGE        = $d7      ; pos = page1, neg = page2
 BGSTORE = $fa
 TEMPADDR        = $fc
 
@@ -63,7 +62,7 @@ fasttoggle
 
 initonce
     lda #0
-    sta FRAMECOUNT
+    sta DRAWPAGE
     rts
 
 
@@ -72,11 +71,10 @@ initsprites
     rts
 
 pageflip
-    inc FRAMECOUNT
-    lda FRAMECOUNT
-    and #1
-    sta VISIBLEPAGE
-    beq pageflip1
+    lda DRAWPAGE
+    eor #$80
+    sta DRAWPAGE
+    bpl pageflip1
     bit TXTPAGE2
     rts
 pageflip1
