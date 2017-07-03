@@ -22,7 +22,10 @@ SCRATCH1        = $1a
 SPRITEPTR_L     = $1b
 SPRITEPTR_H     = $1c
 RENDERCOUNT     = $ce
+FRAMECOUNT      = $cf  ; used to determine page currently displayed: even -> page1, odd -> page2
+VISIBLEPAGE     = $d7
 BGSTORE = $fa
+TEMPADDR        = $fc
 
 BGTOP = $c0       ; page number of first byte beyond top of backing store stack
 
@@ -40,10 +43,12 @@ start
     bit SETHIRES
 
     jsr clrscr
+    jsr initonce
     jsr initsprites
 
 gameloop
     jsr renderstart
+    jsr pageflip
     jsr movestart
     dec fasttoggle
     bpl gofast
@@ -56,9 +61,28 @@ fasttoggle
     .byte 0
 
 
+initonce
+    lda #0
+    sta FRAMECOUNT
+    rts
+
+
 initsprites
     jsr restorebg_init
     rts
+
+pageflip
+    inc FRAMECOUNT
+    lda FRAMECOUNT
+    and #1
+    sta VISIBLEPAGE
+    beq pageflip1
+    bit TXTPAGE2
+    rts
+pageflip1
+    bit TXTPAGE1
+    rts
+
 
 
 ; Draw sprites by looping through the list of sprites
@@ -197,20 +221,27 @@ wait_inner
 clrscr
     lda #0
     sta clr1+1
+    sta clr2+1
     lda #$20
     sta clr1+2
+    lda #$40
+    sta clr2+2
 clr0
     lda #0
     ldy #0
 clr1
     sta $ffff,y
+clr2
+    sta $ffff,y
     iny
     bne clr1
     inc clr1+2
+    inc clr2+2
     ldx clr1+2
     cpx #$40
     bcc clr1
 
+; put the same info on both screens
 clrscr2
     ldy #1
 clrouter
@@ -218,14 +249,18 @@ clrouter
 clrloop
     lda HGRROWS_H1,x
     sta SCRATCH1
+    lda HGRROWS_H2,x
+    sta TEMPADDR+1
     lda HGRROWS_L,x
     sta SCRATCH0
+    sta TEMPADDR
     lda tophalf,y
     cpx #96
     bcc clrwrite
     lda bothalf,y
 clrwrite
     sta (SCRATCH0),y
+    sta (TEMPADDR),y
     inx
     cpx #192
     bcc clrloop

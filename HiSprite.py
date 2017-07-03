@@ -206,7 +206,7 @@ class Listing(object):
 class Sprite(Listing):
     backing_store_sizes = set()
 
-    def __init__(self, pngfile, assembler, screen, xdraw=False, use_mask=False, backing_store=False, clobber=False, processor="any", name=""):
+    def __init__(self, pngfile, assembler, screen, xdraw=False, use_mask=False, backing_store=False, clobber=False, double_buffer=False, processor="any", name=""):
         Listing.__init__(self, assembler)
         self.screen = screen
 
@@ -217,6 +217,7 @@ class Sprite(Listing):
         self.use_mask = use_mask
         self.backing_store = backing_store
         self.clobber = clobber
+        self.double_buffer = double_buffer
         self.processor = processor
         if not name:
             name = os.path.splitext(pngfile)[0]
@@ -310,7 +311,8 @@ class Sprite(Listing):
         # SAVE_AXY + RESTORE_AXY + rts +    sprite jump table
         cycleCount = 9 + 12 + 6 +   3 + 4 + 6
     
-        self.label("%s_SHIFT%d" % (self.slug,shift))
+        baselabel = "%s_SHIFT%d" % (self.slug,shift)
+        self.label(baselabel)
 
         colorStreams = self.screen.byteStreamsFromPixels(shift, self)
         maskStreams = self.screen.byteStreamsFromPixels(shift, self, True)
@@ -324,7 +326,7 @@ class Sprite(Listing):
             self.backing_store_sizes.add((byteWidth, self.height))
             cycleCount += 6
         
-        cycleCount, optimizationCount = self.generateBlitter(colorStreams, maskStreams, cycleCount)
+        cycleCount, optimizationCount = self.generateBlitter(colorStreams, maskStreams, cycleCount, baselabel)
 
         if not self.clobber:
             if self.processor == "any":
@@ -343,14 +345,18 @@ class Sprite(Listing):
         self.asm("rts")
         self.comment("Cycle count: %d, Optimized %d rows." % (cycleCount,optimizationCount))
 
-    def generateBlitter(self, colorStreams, maskStreams, baseCycleCount):
+    def generateBlitter(self, colorStreams, maskStreams, baseCycleCount, baselabel):
         byteWidth = len(colorStreams[0])
         
         cycleCount = baseCycleCount
         optimizationCount = 0
 
-        for row in range(self.height):
-            cycleCount += self.rowStartCalculatorCode(row)
+        order = list(range(self.height))
+        if self.double_buffer:
+            order = reversed(order)
+
+        for row in order:
+            cycleCount += self.rowStartCalculatorCode(row, baselabel)
 
             byteSplits = colorStreams[row]
             maskSplits = maskStreams[row]
@@ -405,16 +411,36 @@ class Sprite(Listing):
 
         return cycleCount, optimizationCount
 
-    def rowStartCalculatorCode(self, row):
+    def rowStartCalculatorCode(self, row, baselabel):
         self.out()
         self.comment_line("row %d" % row)
-        if row == 0:
-            self.asm("ldx PARAM1")
-            cycles = 3
+        if self.double_buffer:
+            if row == self.height - 1:
+                label = "%s_pageloop" % (baselabel)
+                self.asm("ldx PARAM1")
+                self.asm("ldy #%d" % self.height)
+                self.label(label)
+                self.asm("lda HGRROWS_H1,x")
+                self.asm("pha")
+                self.asm("inx")
+                self.asm("dey")
+                self.asm("bne %s" % label)
+                self.asm("dex")
+                self.asm("pla")
+                cycles = 3
+            else:
+                self.asm("dex")
+                self.asm("pla")
+                cycles = 4
         else:
-            self.asm("inx")
-            cycles = 2
-        self.asm("lda HGRROWS_H1,x")
+            if row == 0:
+                self.asm("ldx PARAM1")
+                cycles = 3
+            else:
+                self.asm("inx")
+                cycles = 2
+            self.asm("lda HGRROWS_H1,x")
+            cycles += 4
         self.asm("sta SCRATCH1")
         self.asm("lda HGRROWS_L,x")
         self.asm("sta SCRATCH0")
@@ -427,7 +453,7 @@ class Sprite(Listing):
         else:
             self.asm("ldy PARAM2")
             cycles += 2
-        return cycles + 4 + 3 + 4 + 3;
+        return cycles + 3 + 4 + 3;
 
 
 def shiftStringRight(string, shift, bitsPerPixel, fillerBit):
@@ -918,6 +944,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--screen", default="hgrcolor", choices=["hgrcolor","hgrbw"], help="Screen format (default: %(default)s)")
     parser.add_argument("-n", "--name", default="", help="Name for generated assembly function (default: based on image filename)")
     parser.add_argument("-k", "--clobber", action="store_true", default=False, help="don't save the registers on the stack")
+    parser.add_argument("-d", "--double-buffer", action="store_true", default=False, help="add code blit to either page (default: page 1 only)")
     parser.add_argument("-o", "--output-prefix", default="", help="Base name to create a set of output files. If not supplied, all code will be sent to stdout.")
     parser.add_argument("files", metavar="IMAGE", nargs="*", help="a PNG image [or a list of them]. PNG files must not have an alpha channel!")
     options, extra_args = parser.parse_known_args()
@@ -945,7 +972,7 @@ if __name__ == "__main__":
 
     for pngfile in options.files:
         try:
-            sprite_code = Sprite(pngfile, assembler, screen, options.xdraw, options.mask, options.backing_store, options.clobber, options.processor, options.name)
+            sprite_code = Sprite(pngfile, assembler, screen, options.xdraw, options.mask, options.backing_store, options.clobber, options.double_buffer, options.processor, options.name)
         except RuntimeError, e:
             print "%s: %s" % (pngfile, e)
             sys.exit(1)
