@@ -437,12 +437,11 @@ class Sprite(Listing):
                 self.asm("ldx PARAM1")
                 cycles = 3
             else:
-                self.asm("inx")
-                cycles = 2
-            self.asm("lda HGRROWS_H1,x")
+                cycles = 0
+            self.asm("lda HGRROWS_H1+%d,x" % row)
             cycles += 4
         self.asm("sta SCRATCH1")
-        self.asm("lda HGRROWS_L,x")
+        self.asm("lda HGRROWS_L+%d,x" % row)
         self.asm("sta SCRATCH0")
         if row == 0:
             self.asm("ldy PARAM0")
