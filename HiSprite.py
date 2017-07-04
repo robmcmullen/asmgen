@@ -206,7 +206,7 @@ class Listing(object):
 class Sprite(Listing):
     backing_store_sizes = set()
 
-    def __init__(self, pngfile, assembler, screen, xdraw=False, use_mask=False, backing_store=False, clobber=False, double_buffer=False, processor="any", name=""):
+    def __init__(self, pngfile, assembler, screen, xdraw=False, use_mask=False, backing_store=False, clobber=False, double_buffer=False, damage=False, processor="any", name=""):
         Listing.__init__(self, assembler)
         self.screen = screen
 
@@ -218,6 +218,7 @@ class Sprite(Listing):
         self.backing_store = backing_store
         self.clobber = clobber
         self.double_buffer = double_buffer
+        self.damage = damage
         self.processor = processor
         if not name:
             name = os.path.splitext(pngfile)[0]
@@ -341,6 +342,15 @@ class Sprite(Listing):
                 self.restore_axy_6502()
             else:
                 raise RuntimeError("Processor %s not supported" % self.processor)
+        if self.damage:
+            # the caller knows PARAM0 and PARAM1 for location, so no need to
+            # report those again. But the size varies by sprite (and perhaps by
+            # shift amount?) so store it here
+            byteWidth = len(colorStreams[0])
+            self.asm("lda #%d" % byteWidth)
+            self.asm("sta DAMAGE_W")
+            self.asm("lda #%d" % self.height)
+            self.asm("sta DAMAGE_H")
         self.out()
         self.asm("rts")
         self.comment("Cycle count: %d, Optimized %d rows." % (cycleCount,optimizationCount))
@@ -930,6 +940,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--name", default="", help="Name for generated assembly function (default: based on image filename)")
     parser.add_argument("-k", "--clobber", action="store_true", default=False, help="don't save the registers on the stack")
     parser.add_argument("-d", "--double-buffer", action="store_true", default=False, help="add code blit to either page (default: page 1 only)")
+    parser.add_argument("-g", "--damage", action="store_true", default=False, help="add code to report size of sprite upon return. Can be used in a damage list to restore an area from a pristine source.")
     parser.add_argument("-o", "--output-prefix", default="", help="Base name to create a set of output files. If not supplied, all code will be sent to stdout.")
     parser.add_argument("files", metavar="IMAGE", nargs="*", help="a PNG image [or a list of them]. PNG files must not have an alpha channel!")
     options, extra_args = parser.parse_known_args()
@@ -957,7 +968,7 @@ if __name__ == "__main__":
 
     for pngfile in options.files:
         try:
-            sprite_code = Sprite(pngfile, assembler, screen, options.xdraw, options.mask, options.backing_store, options.clobber, options.double_buffer, options.processor, options.name)
+            sprite_code = Sprite(pngfile, assembler, screen, options.xdraw, options.mask, options.backing_store, options.clobber, options.double_buffer, options.damage, options.processor, options.name)
         except RuntimeError, e:
             print "%s: %s" % (pngfile, e)
             sys.exit(1)
