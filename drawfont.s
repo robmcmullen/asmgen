@@ -58,7 +58,7 @@ DrawCharCol            ;     A=%PQRstuvw
 ;       ORG $034C ; Listing 4a
 _DrawChar1
         LDX hgrptr+1
-        STX scratch0
+        STX scratch_0
 ;       ORG $0350 ; Listing 1
 _DrawChar
         LDX #7
@@ -74,7 +74,7 @@ _LoadFont               ; A = font[ offset ]
 ;       ORG $0363 ; Listing 4a
 IncCursorCol
         INY
-        LDX scratch0       ; Move cursor back to top of scanline
+        LDX scratch_0       ; Move cursor back to top of scanline
         STX hgrptr+1
         RTS
 ;       ORG $0369 ; Listing 10

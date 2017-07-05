@@ -12,35 +12,52 @@ SETHIRES = $c057
 COUT = $fded
 ROMWAIT = $fca8
 
-; Zero page locations we use (unused by Monitor, Applesoft, or ProDOS)
-PARAM0          = $06
-PARAM1          = $07
-PARAM2          = $08
-PARAM3          = $09
-SCRATCH0        = $19
-SCRATCH1        = $1a
-SPRITEPTR_L     = $1b
-SPRITEPTR_H     = $1c
-RENDERCOUNT     = $ce
-DRAWPAGE        = $d7      ; pos = page1, neg = page2
-BGSTORE         = $fa
-TEMPADDR        = $fc
-COUNTER1        = $80
-HGRHI           = $82       ; either $20 or $40, the base of each hgr screen
-HGRSELECT       = $83       ; either $00 or $60, used as xor mask to turn HGRROWS_H1 into address of either page
-TEXTPTR         = $84
-HGRPTR          = $86
-TEMPROW         = $88
-TEMPCOL         = $89
-DAMAGE_W        = $8a
-DAMAGE_H        = $8b
-DAMAGEPTR       = $8c
-DAMAGEPTR1      = $8e
-DAMAGEINDEX1    = $91
-DAMAGEPTR2      = $92
-DAMAGEINDEX2    = $94
-DAMAGEINDEX     = $95
-FASTFONT_SCRATCH0    = $96
+; Zero page locations. Using the whole thing because we aren't using any
+; ROM routines
+
+    *= $0006
+; parameters: these should not be changed by child subroutines
+param_x   .ds 1
+param_y   .ds 1
+param_col   .ds 1
+param_row   .ds 1
+param_index .ds 1
+param_count .ds 1
+
+    *= $0010
+; scratch areas: these may be modified by child subroutines
+scratch_addr  .ds 2
+scratch_ptr   .ds 2
+scratch_0     .ds 1
+scratch_1     .ds 1
+scratch_index .ds 1
+scratch_col   .ds 1
+
+    *= $0020
+; required variables for HiSprite
+bgstore       .ds 2
+damage_w      .ds 1
+damage_h      .ds 1
+damageptr     .ds 2
+damageindex   .ds 1
+damageptr1    .ds 2
+damageindex1  .ds 1
+damageptr2    .ds 2
+damageindex2  .ds 1
+hgrhi         .ds 1    ; either $20 or $40, the base of each hgr screen
+hgrselect     .ds 1    ; either $00 or $60, used as xor mask for HGRROWS_H1
+
+    *= $0030
+; global variables for this program
+rendercount   .ds 1
+drawpage      .ds 1      ; pos = page1, neg = page2
+tempaddr      .ds 2
+counter1      .ds 1
+textptr       .ds 2
+hgrptr        .ds 2
+temprow       .ds 1
+tempcol       .ds 1
+
 
 DAMAGEPAGE1 = $bf       ; page number of first byte beyond top of backing store stack
 DAMAGEPAGE2 = $be
@@ -80,16 +97,16 @@ fasttoggle
 
 initonce
     lda #0
-    sta DRAWPAGE
-    sta DAMAGEINDEX1
-    sta DAMAGEINDEX2
-    sta DAMAGEPTR
-    sta DAMAGEPTR1
-    sta DAMAGEPTR2
-    lda #DAMAGEPAGE1
-    sta DAMAGEPTR+1
-    sta DAMAGEPTR1+1
-    sta DAMAGEPTR2+1
+    sta drawpage
+    sta damageindex1
+    sta damageindex2
+    sta damageptr
+    sta damageptr1
+    sta damageptr2
+    lda #damagepage1
+    sta damageptr+1
+    sta damageptr1+1
+    sta damageptr2+1
     rts
 
 
@@ -200,38 +217,38 @@ copytexthgrslow
 
 
 pageflip
-    lda DRAWPAGE
+    lda drawpage
     eor #$80
-    sta DRAWPAGE
+    sta drawpage
     bpl pageflip1   ; pos = show 1, draw 2; neg = show 1, draw 1
     bit TXTPAGE2    ; show page 2, work on page 1
     lda #$00
-    sta HGRSELECT
+    sta hgrselect
     lda #$20
-    sta HGRHI
-    lda DAMAGEPTR   ; save other page's damage pointer
-    sta DAMAGEPTR2
-    lda DAMAGEPTR1
-    sta DAMAGEPTR
-    lda DAMAGEPTR1+1
-    sta DAMAGEPTR+1
-    lda DAMAGEINDEX1
-    sta DAMAGEINDEX
+    sta hgrhi
+    lda damageptr   ; save other page's damage pointer
+    sta damageptr2
+    lda damageptr1
+    sta damageptr
+    lda damageptr1+1
+    sta damageptr+1
+    lda damageindex1
+    sta damageindex
     rts
 pageflip1
     bit TXTPAGE1    ; show page 1, work on page 2
     lda #$60
-    sta HGRSELECT
+    sta hgrselect
     lda #$40
-    sta HGRHI
-    lda DAMAGEPTR   ; save other page's damage pointer
-    sta DAMAGEPTR1
-    lda DAMAGEPTR2
-    sta DAMAGEPTR
-    lda DAMAGEPTR2+1
-    sta DAMAGEPTR+1
-    lda DAMAGEINDEX2
-    sta DAMAGEINDEX
+    sta hgrhi
+    lda damageptr   ; save other page's damage pointer
+    sta damageptr1
+    lda damageptr2
+    sta damageptr
+    lda damageptr2+1
+    sta damageptr+1
+    lda damageindex2
+    sta damageindex
     rts
 
 
@@ -247,15 +264,15 @@ restorebg_driver
 ; Draw sprites by looping through the list of sprites
 renderstart
     lda #sprite_l - sprite_active
-    sta RENDERCOUNT
+    sta param_count
     inc renderroundrobin_smc+1
 
 renderroundrobin_smc
     ldy #0
-    sty PARAM3
+    sty param_index
 
 renderloop
-    lda PARAM3
+    lda param_index
     and #sprite_l - sprite_active - 1
     tay
     lda sprite_active,y
@@ -265,42 +282,42 @@ renderloop
     lda sprite_h,y
     sta jsrsprite_smc+2
     lda sprite_x,y
-    sta PARAM0
+    sta param_x
     lda sprite_y,y
-    sta PARAM1
+    sta param_y
     jmp jsrsprite_smc
 jsrsprite_smc
     jsr $ffff           ; wish you could JSR ($nnnn)
 
-    ldy DAMAGEINDEX
-    lda PARAM2      ; contains the byte index into the line
-    sta (DAMAGEPTR),y
+    ldy damageindex
+    lda scratch_col      ; contains the byte index into the line
+    sta (damageptr),y
     iny
     clc
-    adc DAMAGE_W
-    sta (DAMAGEPTR),y
+    adc damage_w
+    sta (damageptr),y
     iny
 
-    ; need to convert HGR y values to char rows
-    lda PARAM1
+    ; need to convert hgr y values to char rows
+    lda param_y
     lsr a
     lsr a
     lsr a
-    sta (DAMAGEPTR),y
+    sta (damageptr),y
     iny
-    lda PARAM1
+    lda param_y
     clc
-    adc DAMAGE_H
+    adc damage_h
     lsr a
     lsr a
     lsr a
-    sta (DAMAGEPTR),y
+    sta (damageptr),y
     iny
-    sty DAMAGEINDEX
+    sty damageindex
 
 renderskip
-    inc PARAM3
-    dec RENDERCOUNT
+    inc param_index
+    dec param_count
     bne renderloop
 
 renderend
@@ -309,7 +326,7 @@ renderend
 
 movestart
     lda #sprite_l - sprite_active
-    sta RENDERCOUNT
+    sta param_count
     ldy #0
 
 moveloop
@@ -377,7 +394,7 @@ movey_end
 
 movenext
     iny
-    dec RENDERCOUNT
+    dec param_count
     bne moveloop
 
 moveend
@@ -434,19 +451,19 @@ clrouter
     ldx #0
 clrloop
     lda HGRROWS_H1,x
-    sta SCRATCH1
+    sta scratch_addr+1
     lda HGRROWS_H2,x
-    sta TEMPADDR+1
+    sta scratch_ptr+1
     lda HGRROWS_L,x
-    sta SCRATCH0
-    sta TEMPADDR
+    sta scratch_addr
+    sta scratch_ptr
     lda tophalf,y
     cpx #96
     bcc clrwrite
     lda bothalf,y
 clrwrite
-    sta (SCRATCH0),y
-    sta (TEMPADDR),y
+    sta (scratch_addr),y
+    sta (scratch_ptr),y
     inx
     cpx #192
     bcc clrloop

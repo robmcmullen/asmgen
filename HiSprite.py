@@ -225,15 +225,15 @@ class Sprite(Listing):
         self.slug = slugify(name)
         self.width = pngdata[0]
         self.height = pngdata[1]
-        self.pixelData = list(pngdata[2])
-        self.jumpTable()
-        for i in range(self.screen.numShifts):
-            self.blitShift(i)
+        self.pixel_data = list(pngdata[2])
+        self.jump_table()
+        for i in range(self.screen.num_shifts):
+            self.blit_shift(i)
 
-    def jumpTable(self):
+    def jump_table(self):
         # Prologue
         self.label("%s" % self.slug)
-        self.comment("%d bytes per row" % self.screen.byteWidth(self.width))
+        self.comment("%d bytes per row" % self.screen.byte_width(self.width))
 
         if self.processor == "any":
             self.out(".ifpC02")
@@ -275,22 +275,22 @@ class Sprite(Listing):
     def jump65C02(self):
         if not self.clobber:
             self.save_axy_65C02()
-        self.asm("ldy PARAM0")
-        self.asm("ldx MOD%d_%d,y" % (self.screen.numShifts, self.screen.bitsPerPixel))
+        self.asm("ldy param_x")
+        self.asm("ldx MOD%d_%d,y" % (self.screen.num_shifts, self.screen.bits_per_pixel))
 
         self.asm("jmp (%s_JMP,x)\n" % (self.slug))
         offset_suffix = ""
         
         # Bit-shift jump table for 65C02
         self.label("%s_JMP" % (self.slug))
-        for shift in range(self.screen.numShifts):
+        for shift in range(self.screen.num_shifts):
             self.addr("%s_SHIFT%d" % (self.slug, shift))
 
     def jump6502(self):
         if not self.clobber:
             self.save_axy_6502()
-        self.asm("ldy PARAM0")
-        self.asm("ldx MOD%d_%d,y" % (self.screen.numShifts, self.screen.bitsPerPixel))
+        self.asm("ldy param_x")
+        self.asm("ldx MOD%d_%d,y" % (self.screen.num_shifts, self.screen.bits_per_pixel))
 
         # Fast jump table routine; faster and smaller than self-modifying code
         self.asm("lda %s_JMP+1,x" % (self.slug))
@@ -301,33 +301,33 @@ class Sprite(Listing):
 
         # Bit-shift jump table for generic 6502
         self.label("%s_JMP" % (self.slug))
-        for shift in range(self.screen.numShifts):
+        for shift in range(self.screen.num_shifts):
             self.addr("%s_SHIFT%d-1" % (self.slug,shift))
 
-    def blitShift(self, shift):
+    def blit_shift(self, shift):
         # Blitting functions
         self.out("\n")
         
         # Track cycle count of the blitter. We start with fixed overhead:
         # SAVE_AXY + RESTORE_AXY + rts +    sprite jump table
-        cycleCount = 9 + 12 + 6 +   3 + 4 + 6
+        cycle_count = 9 + 12 + 6 +   3 + 4 + 6
     
         baselabel = "%s_SHIFT%d" % (self.slug,shift)
         self.label(baselabel)
 
-        colorStreams = self.screen.byteStreamsFromPixels(shift, self)
-        maskStreams = self.screen.byteStreamsFromPixels(shift, self, True)
-        for c, m in zip(colorStreams, maskStreams):
+        color_streams = self.screen.byte_streams_from_pixels(shift, self)
+        mask_streams = self.screen.byte_streams_from_pixels(shift, self, True)
+        for c, m in zip(color_streams, mask_streams):
             self.comment_line(str(c) + "  " + str(m))
         self.out("")
 
         if self.backing_store:
-            byteWidth = len(colorStreams[0])
-            self.asm("jsr savebg_%dx%d" % (byteWidth, self.height))
-            self.backing_store_sizes.add((byteWidth, self.height))
-            cycleCount += 6
+            byte_width = len(color_streams[0])
+            self.asm("jsr savebg_%dx%d" % (byte_width, self.height))
+            self.backing_store_sizes.add((byte_width, self.height))
+            cycle_count += 6
         
-        cycleCount, optimizationCount = self.generateBlitter(colorStreams, maskStreams, cycleCount, baselabel)
+        cycle_count, optimization_count = self.generate_blitter(color_streams, mask_streams, cycle_count, baselabel)
 
         if not self.clobber:
             if self.processor == "any":
@@ -343,46 +343,46 @@ class Sprite(Listing):
             else:
                 raise RuntimeError("Processor %s not supported" % self.processor)
         if self.damage:
-            # the caller knows PARAM0 and PARAM1 for location, so no need to
-            # report those again. But the size varies by sprite (and perhaps by
-            # shift amount?) so store it here
-            byteWidth = len(colorStreams[0])
-            self.asm("lda #%d" % byteWidth)
+            # the caller knows param_x and param_y for location, so no need
+            # to report those again. But the size varies by sprite (and perhaps
+            # by shift amount?) so store it here
+            byte_width = len(color_streams[0])
+            self.asm("lda #%d" % byte_width)
             self.asm("sta DAMAGE_W")
             self.asm("lda #%d" % self.height)
             self.asm("sta DAMAGE_H")
         self.out()
         self.asm("rts")
-        self.comment("Cycle count: %d, Optimized %d rows." % (cycleCount,optimizationCount))
+        self.comment("Cycle count: %d, Optimized %d rows." % (cycle_count,optimization_count))
 
-    def generateBlitter(self, colorStreams, maskStreams, baseCycleCount, baselabel):
-        byteWidth = len(colorStreams[0])
+    def generate_blitter(self, color_streams, mask_streams, base_cycle_count, baselabel):
+        byte_width = len(color_streams[0])
         
-        cycleCount = baseCycleCount
-        optimizationCount = 0
+        cycle_count = base_cycle_count
+        optimization_count = 0
 
         order = list(range(self.height))
 
         for row in order:
-            cycleCount += self.rowStartCalculatorCode(row, baselabel)
+            cycle_count += self.row_start_calculator_code(row, baselabel)
 
-            byteSplits = colorStreams[row]
-            maskSplits = maskStreams[row]
-            byteCount = len(byteSplits)
+            byte_splits = color_streams[row]
+            mask_splits = mask_streams[row]
+            byte_count = len(byte_splits)
 
             # number of trailing iny to remove due to unchanged bytes at the
             # end of the row
             skip_iny = 0
 
             # Generate blitting code
-            for index, (value, mask) in enumerate(zip(byteSplits, maskSplits)):
+            for index, (value, mask) in enumerate(zip(byte_splits, mask_splits)):
                 if index > 0:
                     self.asm("iny")
-                    cycleCount += 2
+                    cycle_count += 2
 
                 # Optimization
                 if mask == "01111111":
-                    optimizationCount += 1
+                    optimization_count += 1
                     self.comment_line("byte %d: skipping! unchanged byte (mask = %s)" % (index, mask))
                     skip_iny += 1
                 else:
@@ -390,40 +390,40 @@ class Sprite(Listing):
                     skip_iny = 0
                     # Store byte into video memory
                     if self.xdraw:
-                        self.asm("lda (SCRATCH0),y")
+                        self.asm("lda (scratch_addr),y")
                         self.asm("eor %s" % value)
-                        self.asm("sta (SCRATCH0),y");
-                        cycleCount += 5 + 2 + 6
+                        self.asm("sta (scratch_addr),y");
+                        cycle_count += 5 + 2 + 6
                     elif self.use_mask:
                         if mask == "00000000":
                             # replacing all the bytes; no need for and/or!
                             self.asm("lda %s" % value)
-                            self.asm("sta (SCRATCH0),y");
-                            cycleCount += 2 + 5
+                            self.asm("sta (scratch_addr),y");
+                            cycle_count += 2 + 5
                         else:
                             mask = self.binary_constant(mask)
-                            self.asm("lda (SCRATCH0),y")
+                            self.asm("lda (scratch_addr),y")
                             self.asm("and %s" % mask)
                             self.asm("ora %s" % value)
-                            self.asm("sta (SCRATCH0),y");
-                            cycleCount += 5 + 2 + 2 + 6
+                            self.asm("sta (scratch_addr),y");
+                            cycle_count += 5 + 2 + 2 + 6
                     else:
                         self.asm("lda %s" % value)
-                        self.asm("sta (SCRATCH0),y");
-                        cycleCount += 2 + 6
+                        self.asm("sta (scratch_addr),y");
+                        cycle_count += 2 + 6
 
             while skip_iny > 0:
                 self.pop_asm("iny")
                 skip_iny -= 1
-                cycleCount -= 2
+                cycle_count -= 2
 
-        return cycleCount, optimizationCount
+        return cycle_count, optimization_count
 
-    def rowStartCalculatorCode(self, row, baselabel):
+    def row_start_calculator_code(self, row, baselabel):
         self.out()
         self.comment_line("row %d" % row)
         if row == 0:
-            self.asm("ldx PARAM1")
+            self.asm("ldx param_y")
             cycles = 3
         else:
             cycles = 0
@@ -435,31 +435,31 @@ class Sprite(Listing):
             # and 6th bit
             self.asm("eor HGRSELECT")
             cycles += 3
-        self.asm("sta SCRATCH1")
+        self.asm("sta scratch_addr+1")
         self.asm("lda HGRROWS_L+%d,x" % row)
-        self.asm("sta SCRATCH0")
+        self.asm("sta scratch_addr")
         cycles += 3 + 4 + 3
         if row == 0:
-            self.asm("ldy PARAM0")
-            self.asm("lda DIV%d_%d,y" % (self.screen.numShifts, self.screen.bitsPerPixel))
-            self.asm("sta PARAM2")  # save the mod lookup; it doesn't change
+            self.asm("ldy param_x")
+            self.asm("lda DIV%d_%d,y" % (self.screen.num_shifts, self.screen.bits_per_pixel))
+            self.asm("sta scratch_col")  # save the mod lookup; it doesn't change
             self.asm("tay")
             cycles += 3 + 4 + 3 + 2
         else:
-            self.asm("ldy PARAM2")
+            self.asm("ldy scratch_col")
             cycles += 2
         return cycles;
 
 
-def shiftStringRight(string, shift, bitsPerPixel, fillerBit):
+def shift_string_right(string, shift, bits_per_pixel, filler_bit):
     if shift==0:
         return string
     
-    shift *= bitsPerPixel
+    shift *= bits_per_pixel
     result = ""
     
     for i in range(shift):
-        result += fillerBit
+        result += filler_bit
         
     result += string
     return result
@@ -467,49 +467,49 @@ def shiftStringRight(string, shift, bitsPerPixel, fillerBit):
 
 
 class ScreenFormat(object):
-    numShifts = 8
+    num_shifts = 8
 
-    bitsPerPixel = 1
+    bits_per_pixel = 1
 
-    screenWidth = 320
+    screen_width = 320
 
-    screenHeight = 192
+    screen_height = 192
 
     def __init__(self):
         self.offsets = self.generate_row_offsets()
-        self.numX = self.screenWidth / self.bitsPerPixel
+        self.numX = self.screen_width / self.bits_per_pixel
 
-    def byteWidth(self, png_width):
-        return (png_width * self.bitsPerPixel + self.numShifts - 1) // self.numShifts + 1
+    def byte_width(self, png_width):
+        return (png_width * self.bits_per_pixel + self.num_shifts - 1) // self.num_shifts + 1
 
-    def bitsForColor(self, pixel):
+    def bits_for_color(self, pixel):
         raise NotImplementedError
 
-    def bitsForMask(self, pixel):
+    def bits_for_mask(self, pixel):
         raise NotImplementedError
 
-    def pixelColor(self, pixelData, row, col):
+    def pixel_color(self, pixel_data, row, col):
         raise NotImplementedError
 
     def generate_row_offsets(self):
-        offsets = [40 * y for y in range(self.screenHeight)]
+        offsets = [40 * y for y in range(self.screen_height)]
         return offsets
 
-    def generate_row_addresses(self, baseAddr):
-        addrs = [baseAddr + offset for offset in self.offsets]
+    def generate_row_addresses(self, base_addr):
+        addrs = [base_addr + offset for offset in self.offsets]
         return addrs
 
 
 class HGR(ScreenFormat):
-    numShifts = 7
+    num_shifts = 7
 
-    bitsPerPixel = 2
+    bits_per_pixel = 2
 
-    screenWidth = 280
+    screen_width = 280
 
     black,magenta,green,orange,blue,white,key = range(7)
 
-    def bitsForColor(self, pixel):
+    def bits_for_color(self, pixel):
         if pixel == self.black or pixel == self.key:
             return "00"
         else:
@@ -522,27 +522,27 @@ class HGR(ScreenFormat):
         # blue or magenta
         return "10"
 
-    def bitsForMask(self, pixel):
+    def bits_for_mask(self, pixel):
         if pixel == self.key:
             return "11"
 
         return "00"
 
-    def highBitForColor(self, pixel):
+    def high_bit_for_color(self, pixel):
         # Note that we prefer high-bit white because blue fringe is less noticeable than magenta.
-        highBit = "0"
+        high_bit = "0"
         if pixel == self.orange or pixel == self.blue or pixel == self.white:
-            highBit = "1"
+            high_bit = "1"
 
-        return highBit
+        return high_bit
 
-    def highBitForMask(self, pixel):
+    def high_bit_for_mask(self, pixel):
         return "0"
 
-    def pixelColor(self, pixelData, row, col):
-        r = pixelData[row][col*3]
-        g = pixelData[row][col*3+1]
-        b = pixelData[row][col*3+2]
+    def pixel_color(self, pixel_data, row, col):
+        r = pixel_data[row][col*3]
+        g = pixel_data[row][col*3+1]
+        b = pixel_data[row][col*3+2]
 
         rhi = r == 255
         rlo = r == 0
@@ -568,68 +568,68 @@ class HGR(ScreenFormat):
             color = self.key
         return color
 
-    def byteStreamsFromPixels(self, shift, source, mask=False):
-        byteStreams = ["" for x in range(source.height)]
-        byteWidth = self.byteWidth(source.width)
+    def byte_streams_from_pixels(self, shift, source, mask=False):
+        byte_streams = ["" for x in range(source.height)]
+        byte_width = self.byte_width(source.width)
 
         if mask:
-            bitDelegate = self.bitsForMask
-            highBitDelegate = self.highBitForMask
-            fillerBit = "1"
+            bit_delegate = self.bits_for_mask
+            high_bit_delegate = self.high_bit_for_mask
+            filler_bit = "1"
         else:
-            bitDelegate = self.bitsForColor
-            highBitDelegate = self.highBitForColor
-            fillerBit = "0"
+            bit_delegate = self.bits_for_color
+            high_bit_delegate = self.high_bit_for_color
+            filler_bit = "0"
 
         for row in range(source.height):
-            bitStream = ""
-            highBit = "0"
-            highBitFound = False
+            bit_stream = ""
+            high_bit = "0"
+            high_bit_found = False
             
             # Compute raw bitstream for row from PNG pixels
-            for pixelIndex in range(source.width):
-                pixel = self.pixelColor(source.pixelData,row,pixelIndex)
-                bitStream += bitDelegate(pixel)
+            for pixel_index in range(source.width):
+                pixel = self.pixel_color(source.pixel_data,row,pixel_index)
+                bit_stream += bit_delegate(pixel)
 
                 # Determine palette bit from first non-black pixel on each row
-                if not highBitFound and pixel != self.black and pixel != self.key:
-                    highBit = highBitDelegate(pixel)
-                    highBitFound = True
+                if not high_bit_found and pixel != self.black and pixel != self.key:
+                    high_bit = high_bit_delegate(pixel)
+                    high_bit_found = True
             
             # Shift bit stream as needed
-            bitStream = shiftStringRight(bitStream, shift, self.bitsPerPixel, fillerBit)
-            bitStream = bitStream[:byteWidth*8]
+            bit_stream = shift_string_right(bit_stream, shift, self.bits_per_pixel, filler_bit)
+            bit_stream = bit_stream[:byte_width*8]
             
             # Split bitstream into bytes
-            bitPos = 0
-            byteSplits = [0 for x in range(byteWidth)]
+            bit_pos = 0
+            byte_splits = [0 for x in range(byte_width)]
             
-            for byteIndex in range(byteWidth):
-                remainingBits = len(bitStream) - bitPos
+            for byte_index in range(byte_width):
+                remaining_bits = len(bit_stream) - bit_pos
                     
-                bitChunk = ""
+                bit_chunk = ""
                 
-                if remainingBits < 0:
-                    bitChunk = fillerBit * 7
+                if remaining_bits < 0:
+                    bit_chunk = filler_bit * 7
                 else:   
-                    if remainingBits < 7:
-                        bitChunk = bitStream[bitPos:]
-                        bitChunk += fillerBit * (7-remainingBits)
+                    if remaining_bits < 7:
+                        bit_chunk = bit_stream[bit_pos:]
+                        bit_chunk += filler_bit * (7-remaining_bits)
                     else:   
-                        bitChunk = bitStream[bitPos:bitPos+7]
+                        bit_chunk = bit_stream[bit_pos:bit_pos+7]
                 
-                bitChunk = bitChunk[::-1]
+                bit_chunk = bit_chunk[::-1]
                 
-                byteSplits[byteIndex] = highBit + bitChunk
-                bitPos += 7
+                byte_splits[byte_index] = high_bit + bit_chunk
+                bit_pos += 7
                 
-                byteStreams[row] = byteSplits;
+                byte_streams[row] = byte_splits;
 
-        return byteStreams
+        return byte_streams
 
     def generate_row_offsets(self):
         offsets = []
-        for y in range(self.screenHeight):
+        for y in range(self.screen_height):
             # From Apple Graphics and Arcade Game Design
             a = y // 64
             d = y - (64 * a)
@@ -640,23 +640,23 @@ class HGR(ScreenFormat):
 
 
 class HGRBW(HGR):
-    bitsPerPixel = 1
+    bits_per_pixel = 1
 
-    def bitsForColor(self, pixel):
+    def bits_for_color(self, pixel):
         if pixel == self.white:
             return "1"
         else:
             return "0"
 
-    def bitsForMask(self, pixel):
+    def bits_for_mask(self, pixel):
         if pixel == self.key:
             return "1"
         return "0"
 
-    def pixelColor(self, pixelData, row, col):
-        r = pixelData[row][col*3]
-        g = pixelData[row][col*3+1]
-        b = pixelData[row][col*3+2]
+    def pixel_color(self, pixel_data, row, col):
+        r = pixel_data[row][col*3]
+        g = pixel_data[row][col*3+1]
+        b = pixel_data[row][col*3+2]
         color = self.black
         
         if abs(r - g) < 16 and abs(g - b) < 16 and r!=0 and r!=255:   # Any grayish color is chroma key
@@ -693,21 +693,21 @@ class RowLookup(Listing):
 class ColLookup(Listing):
     def __init__(self, assembler, screen):
         Listing.__init__(self, assembler)
-        self.slug = "hgrcols-%dx%d" % (screen.numShifts, screen.bitsPerPixel)
+        self.slug = "hgrcols-%dx%d" % (screen.num_shifts, screen.bits_per_pixel)
         self.generate_x(screen)
 
     def generate_x(self, screen):
         self.out("\n")
-        self.label("DIV%d_%d" % (screen.numShifts, screen.bitsPerPixel))
+        self.label("DIV%d_%d" % (screen.num_shifts, screen.bits_per_pixel))
         for pixel in range(screen.numX):
-            self.byte("$%02x" % ((pixel / screen.numShifts) * screen.bitsPerPixel), screen.numShifts)
+            self.byte("$%02x" % ((pixel / screen.num_shifts) * screen.bits_per_pixel), screen.num_shifts)
 
         self.out("\n")
-        self.label("MOD%d_%d" % (screen.numShifts, screen.bitsPerPixel))
+        self.label("MOD%d_%d" % (screen.num_shifts, screen.bits_per_pixel))
         for pixel in range(screen.numX):
             # This is the index into the jump table, so it's always multiplied
             # by 2
-            self.byte("$%02x" % ((pixel % screen.numShifts) * 2), screen.numShifts)
+            self.byte("$%02x" % ((pixel % screen.num_shifts) * 2), screen.num_shifts)
 
 
 class BackingStore(Listing):
@@ -752,22 +752,22 @@ class BackingStore(Listing):
         self.asm("lda #>%s" % self.restore_label)
         self.asm("sta (bgstore),y")
         self.asm("iny")
-        self.asm("lda PARAM0")
+        self.asm("lda param_x")
         self.asm("sta (bgstore),y")
         self.asm("iny")
-        self.asm("lda PARAM1")
+        self.asm("lda param_y")
 
-        # Note that we can't clobber PARAM1 like the restore routine can
+        # Note that we can't clobber param_y like the restore routine can
         # because this is called in the sprite drawing routine and these
         # values must be retained to draw the sprite in the right place!
-        self.asm("sta SCRATCH0")
+        self.asm("sta scratch_addr")
         self.asm("sta (bgstore),y")
         self.asm("iny")
 
         # The unrolled code is taken from Quinn's row sweep backing store
         # code in a previous version of HiSprite
 
-        loop_label, col_label = self.smc_row_col(self.save_label, "SCRATCH0")
+        loop_label, col_label = self.smc_row_col(self.save_label, "scratch_addr")
 
         for c in range(self.byte_width):
             self.label(col_label % c)
@@ -778,7 +778,7 @@ class BackingStore(Listing):
                 # last loop doesn't need this
                 self.asm("inx")
 
-        self.asm("inc SCRATCH0")
+        self.asm("inc scratch_addr")
 
         self.asm("cpy #%d" % self.space_needed)
         self.asm("bcc %s" % loop_label)
@@ -788,7 +788,7 @@ class BackingStore(Listing):
     def smc_row_col(self, label, row_var):
         # set up smc for hires column, because the starting column doesn't
         # change when moving to the next row
-        self.asm("ldx PARAM0")
+        self.asm("ldx param_x")
         self.asm("lda DIV7_1,x")
         smc_label = "%s_smc1" % label
         self.asm("sta %s+1" % smc_label)
@@ -815,16 +815,16 @@ class BackingStore(Listing):
         # screen, which is 4 bytes into the bgstore array. Everything before
         # the data will have already been pulled off by the driver in order to
         # figure out which restore routine to call.  Y will be 4 upon entry,
-        # and PARAM0 and PARAM1 will be filled with the x & y values.
+        # and param_x and param_y will be filled with the x & y values.
         #
         # also, no need to save registers because this is being called from a
         # driver that will do all of that.
         self.label(self.restore_label)
 
-        # we can clobber the heck out of PARAM1 because we're being called from
+        # we can clobber the heck out of param_y because we're being called from
         # the restore driver and when we return we are just going to load it up
         # with the next value anyway.
-        loop_label, col_label = self.smc_row_col(self.restore_label, "PARAM1")
+        loop_label, col_label = self.smc_row_col(self.restore_label, "param_y")
 
         for c in range(self.byte_width):
             self.asm("lda (bgstore),y")
@@ -835,7 +835,7 @@ class BackingStore(Listing):
                 # last loop doesn't need this
                 self.asm("inx")
 
-        self.asm("inc PARAM1")
+        self.asm("inc param_y")
         self.asm("cpy #%d" % self.space_needed)
         self.asm("bcc %s" % loop_label)
 
@@ -850,8 +850,8 @@ class BackingStoreDriver(Listing):
     # variables used:
     #   bgstore: (lo byte, hi byte) 1 + the first byte of free memory.
     #            I.e. points just beyond the last byte
-    #   PARAM0: (byte) x coord
-    #   PARAM1: (byte) y coord
+    #   param_x: (byte) x coord
+    #   param_y: (byte) y coord
     #
     # everything else is known because the sizes of each erase/restore
     # routine are hardcoded because this is a sprite *compiler*.
@@ -900,10 +900,10 @@ class BackingStoreDriver(Listing):
         self.asm("sta restorebg_jsr_smc+2")
         self.asm("iny")
         self.asm("lda (bgstore),y")
-        self.asm("sta PARAM0")
+        self.asm("sta param_x")
         self.asm("iny ")
         self.asm("lda (bgstore),y")
-        self.asm("sta PARAM1")
+        self.asm("sta param_y")
         self.asm("iny")
         self.label("restorebg_jsr_smc")
         self.asm("jsr $ffff")
@@ -942,7 +942,7 @@ class FastFont(Listing):
         self.asm("sta %s_JMP+2" % label)
         self.asm("lda %s_JMP_LO,y" % label)
         self.asm("sta %s_JMP+1" % label)
-        self.asm("sty FASTFONT_SCRATCH0")
+        self.asm("sty scratch_0")
         self.asm("pla")
         self.asm("tay")
         self.label("%s_JMP" % label)
@@ -962,9 +962,9 @@ class FastFont(Listing):
         for r in range(24):
             self.label("%s_%d" % (label, r))
             for i in range(8):
-                self.asm("lda TRANSPOSED_FONT_ROW%d,y" % i)
+                self.asm("lda TransposedFontRow%d,y" % i)
                 self.asm("sta $%04x,x" % (hgr1[r*8 + i]))
-            self.asm("ldy FASTFONT_SCRATCH0")
+            self.asm("ldy scratch_0")
             self.asm("rts")
         self.out()
 
@@ -974,7 +974,7 @@ class FastFont(Listing):
         num_bytes = len(data)
         num_chars = num_bytes / 8
         for r in range(8):
-            self.label("TRANSPOSED_FONT_ROW%d" % r)
+            self.label("TransposedFontRow%d" % r)
             for i in range(num_chars):
                 index = i * 8 + r
                 self.byte("$%02x" % ord(data[index]), 16)
