@@ -100,8 +100,12 @@ initsprites
 initbackground
     jsr filltext
     jsr pageflip
+    bit TXTPAGE1
     jsr copytexthgr
-    jsr clrscr
+    jsr copytexthgrslow
+    jsr copytexthgr
+    jsr copytexthgrslow
+    jsr copytexthgr
     jsr pageflip
     jsr copytexthgr
     rts
