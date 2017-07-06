@@ -43,7 +43,7 @@ cpbg-sprite-driver.s: HiSprite.py $(BWSPRITE)
 	python HiSprite.py -a mac65 -p 6502 -s hgrbw -m -k -d -g -f fatfont128.dat -o cpbg $(BWSPRITE) $(COLORSPRITE)
 
 cpbg.dsk: HiSprite.py cpbg.s cpbg-sprite-driver.s
-	atasm -ocpbg.xex cpbg.s -Lcpbg.var -gcpbg.lst
+	atasm -mae -ocpbg.xex cpbg.s -Lcpbg.var -gcpbg.lst
 	#atrcopy cpbg.dsk boot -d partycrasher-software.hgr@2000 player-missile.hgr@4000 -b cpbg.xex --brun 6000 -f
 	atrcopy cpbg.dsk boot -b cpbg.xex --brun 6000 -f
 

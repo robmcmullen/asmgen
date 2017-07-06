@@ -1,4 +1,6 @@
 ; os memory map
+KEYBOARD = $c000
+KBDSTROBE = $c010
 CLRTEXT = $c050
 SETTEXT = $c051
 CLRMIXED = $c052
@@ -31,6 +33,7 @@ scratch_ptr   .ds 2
 scratch_0     .ds 1
 scratch_1     .ds 1
 scratch_index .ds 1
+scratch_count .ds 1
 scratch_col   .ds 1
 
     *= $0020
@@ -59,12 +62,15 @@ temprow       .ds 1
 tempcol       .ds 1
 
 
-DAMAGEPAGE1 = $bf       ; page number of first byte beyond top of backing store stack
-DAMAGEPAGE2 = $be
-
 ; constants
-MAXPOSX                 = 250
-MAXPOSY                 = 192 - 16
+
+DAMAGEPAGE1 = $bf   ; page number of damage list for screen 1
+DAMAGEPAGE2 = $be   ;   "" for screen 2
+MAXPOSX     = 250
+MAXPOSY     = 192 - 16
+
+; debug flags
+DEBUG_BACKGROUND = 0
 
 
     *= $6000
@@ -75,7 +81,6 @@ start
     bit TXTPAGE2
     bit SETHIRES
 
-    jsr clrscr
     jsr initonce
     jsr initsprites
     jsr initbackground
@@ -83,20 +88,51 @@ start
 gameloop
     jsr renderstart
     jsr pageflip
+    jsr userinput
     jsr movestart
-    dec fasttoggle
-    bpl gofast
-    jsr wait
-gofast
     jsr restorebg_driver
     jmp gameloop
 
-fasttoggle
-    .byte 0
+userinput
+    lda KEYBOARD
+    bmi ?1
+    rts
+?1
+    sta KBDSTROBE
+    cmp #$80 + 32
+    beq input_space
+    cmp #$80 + '.'
+    beq input_period
+    cmp #$80 + 'P'
+    beq input_period
+    rts
+
+input_space
+    jmp debugflipscreens
+
+input_period
+    lda KEYBOARD
+    bpl input_period
+    cmp #$80 + 'P'
+    beq input_period
+    rts
+
+debugflipscreens
+    lda #20
+    sta scratch_count
+debugloop
+    jsr pageflip
+    jsr wait
+    jsr pageflip
+    jsr wait
+    dec scratch_count
+    bne debugloop
+    rts
 
 
 initonce
     lda #0
+    sta KBDSTROBE
     sta drawpage
     sta damageindex1
     sta damageindex2
@@ -116,6 +152,7 @@ initsprites
 
 initbackground
     jsr filltext
+.if DEBUG_BACKGROUND
     jsr pageflip
     bit TXTPAGE1
     jsr copytexthgr
@@ -124,6 +161,7 @@ initbackground
     jsr copytexthgrslow
     jsr copytexthgr
     jsr pageflip
+.endif
     jsr copytexthgr
     rts
 
@@ -257,6 +295,7 @@ restorebg_init
 
 restorebg_driver
     ; copy damaged characters back to screen
+    jsr copytexthgr
     rts
 
 
@@ -444,6 +483,7 @@ clr2
     cpx #$40
     bcc clr1
 
+.if DEBUG_BACKGROUND
 ; put the same info on both screens
 clrscr2
     ldy #1
@@ -496,6 +536,9 @@ bothalf
     .byte $88, ~11010101, ~10101010, ~11010101, ~10101010, ~11010101
     .byte $08, ~10101010, ~11010101, ~10101010, ~11010101, ~10101010
 
+.else ; !DEBUG_BACKGROUND
+    rts
+.endif
 
 
 ; Sprite data is interleaved so a simple indexed mode can be used. This is not
@@ -522,13 +565,13 @@ sprite_y
     .byte 116, 126, 40, 60, 80, 100, 120, 140
 
 sprite_dx
-    .byte 1, 2, 3, 4, 1, 2, 3, 4
+    .byte 1, 2, 3, 4, 1, 2, 0, 1
 
 sprite_dirx
     .byte -1, -1, -1, -1, 1, 1, 1, 1
 
 sprite_dy
-    .byte 4, 3, 2, 1, 4, 3, 2, 1
+    .byte 4, 3, 2, 1, 4, 3, 1, 0
 
 sprite_diry
     .byte 1, 1, 1, 1, -1, -1, -1, -1
