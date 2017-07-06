@@ -66,7 +66,7 @@ tempcol       .ds 1
 
 DAMAGEPAGE1 = $bf   ; page number of damage list for screen 1
 DAMAGEPAGE2 = $be   ;   "" for screen 2
-MAXPOSX     = 250
+MAXPOSX     = 220
 MAXPOSY     = 192 - 16
 
 ; debug flags
@@ -95,6 +95,11 @@ gameloop
 
 userinput
     lda KEYBOARD
+    pha
+    ldx #38
+    ldy #0
+    jsr printhex
+    pla
     bmi ?1
     rts
 ?1
@@ -129,6 +134,29 @@ debugloop
     bne debugloop
     rts
 
+printhex ; A = hex byte, X = column, Y = row; A is clobbered, X&Y are not
+    pha
+    stx param_x
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    lda hexdigit,x
+    ldx param_x
+    jsr fastfont
+    pla
+    and #$0f
+    tax
+    lda hexdigit,x
+    ldx param_x
+    inx
+    jsr fastfont
+    rts
+
+hexdigit .byte "0123456789ABCDEF"
+
+
 
 initonce
     lda #0
@@ -142,7 +170,9 @@ initonce
     lda #damagepage1
     sta damageptr+1
     sta damageptr1+1
+    lda #damagepage2
     sta damageptr2+1
+    jsr draw_to_page1
     rts
 
 
@@ -195,16 +225,6 @@ ib_inner
 
 
 copytexthgr
-    lda HGRSELECT
-    beq copytexthgr_page1
-    ldx #<FASTFONT_H2
-    ldy #>FASTFONT_H2
-    bne copytexthgr_store_dest    ; always true: hi byte of subroutine is > 0
-copytexthgr_page1    ldx #<FASTFONT_H1
-    ldy #>FASTFONT_H1
-copytexthgr_store_dest
-    stx copytexthgr_dest_smc+1
-    sty copytexthgr_dest_smc+2
     ldy #0      ; y is rows
 copytexthgr_outer
     lda textrow_h,y
@@ -216,9 +236,9 @@ copytexthgr_outer
 copytexthgr_src_smc
     lda $ffff,x
 copytexthgr_dest_smc
-    jsr FASTFONT_H1
+    jsr $ffff
     inx
-    cpx #40
+    cpx #32
     bcc copytexthgr_src_smc
     iny
     cpy #24
@@ -253,14 +273,8 @@ copytexthgrslow
 
     rts
 
-
-pageflip
-    lda drawpage
-    eor #$80
-    sta drawpage
-    bpl pageflip1   ; pos = show 1, draw 2; neg = show 1, draw 1
-    bit TXTPAGE2    ; show page 2, work on page 1
-    lda #$00
+show_page2 bit TXTPAGE2 ; show page 2, work on page 1
+draw_to_page1 lda #$00
     sta hgrselect
     lda #$20
     sta hgrhi
@@ -272,10 +286,18 @@ pageflip
     sta damageptr+1
     lda damageindex1
     sta damageindex
+
+    ; copy addresses for functions that write to one page or the other
+    lda #<FASTFONT_H1
+    sta fastfont+1
+    sta copytexthgr_dest_smc+1
+    lda #>FASTFONT_H1
+    sta fastfont+2
+    sta copytexthgr_dest_smc+2
     rts
-pageflip1
-    bit TXTPAGE1    ; show page 1, work on page 2
-    lda #$60
+
+show_page1 bit TXTPAGE1 ; show page 1, work on page 2
+draw_to_page2 lda #$60
     sta hgrselect
     lda #$40
     sta hgrhi
@@ -287,8 +309,25 @@ pageflip1
     sta damageptr+1
     lda damageindex2
     sta damageindex
+    lda #<FASTFONT_H2
+    sta fastfont+1
+    sta copytexthgr_dest_smc+1
+    lda #>FASTFONT_H2
+    sta fastfont+2
+    sta copytexthgr_dest_smc+2
     rts
 
+pageflip
+    lda drawpage
+    eor #$80
+    sta drawpage
+    bpl show_page1   ; pos = show 1, draw 2; neg = show 1, draw 1
+    bmi show_page2
+
+; pageflip jump tables. JSR to one of these jumps and it will jump to the 
+; correct version for the page. The rts in there will return to the caller
+
+fastfont jmp $ffff
 
 restorebg_init
     rts
