@@ -101,10 +101,76 @@ userinput
     jsr printhex
     pla
     bmi ?1
+
+    ; stop movement of player if no direction input
+    lda #0
+    tax
+    sta sprite_dx,x
+    lda #0
+    sta sprite_dy,y
+
     rts
 ?1
-    sta KBDSTROBE
-    cmp #$80 + 32
+    ; setting the keyboard strobe causes the key to enter repeat mode if held
+    ; down, which causes a pause after the initial movement. Not setting the
+    ; strobe allows smooth movement from the start, but there's no way to stop
+    ;sta KBDSTROBE
+    ldx #0
+
+check_up cmp #$8d  ; up arrow
+    beq input_up
+    cmp #$c9  ; I
+    bne check_down
+input_up lda #-1
+    sta sprite_diry,x
+    lda #0
+    sta sprite_dx,x
+    lda #1
+    sta sprite_dy,y
+    rts
+
+check_down cmp #$af  ; down arrow
+    beq input_down
+    cmp #$d4  ; K
+    bne check_left
+input_down lda #1
+    sta sprite_diry,x
+    lda #0
+    sta sprite_dx,x
+    lda #1
+    sta sprite_dy,y
+    rts
+
+check_left cmp #$88  ; left arrow
+    beq input_left
+    cmp #$c8  ; J
+    bne check_right
+input_left lda #-1
+    sta sprite_dirx,x
+    lda #1
+    sta sprite_dx,x
+    lda #0
+    sta sprite_dy,y
+    rts
+
+check_right cmp #$95  ; right arrow
+    beq input_right
+    cmp #$ce  ; L
+    bne input_not_movement
+input_right lda #1
+    sta sprite_dirx,x
+    lda #1
+    sta sprite_dx,x
+    lda #0
+    sta sprite_dy,y
+    rts
+
+input_not_movement lda #0
+    sta sprite_dx,x
+    lda #0
+    sta sprite_dy,y
+
+check_special cmp #$80 + 32
     beq input_space
     cmp #$80 + '.'
     beq input_period
@@ -273,6 +339,13 @@ copytexthgrslow
 
     rts
 
+
+pageflip
+    lda drawpage
+    eor #$80
+    sta drawpage
+    bpl show_page1   ; pos = show 1, draw 2; neg = show 1, draw 1
+
 show_page2 bit TXTPAGE2 ; show page 2, work on page 1
 draw_to_page1 lda #$00
     sta hgrselect
@@ -316,13 +389,6 @@ draw_to_page2 lda #$60
     sta fastfont+2
     sta copytexthgr_dest_smc+2
     rts
-
-pageflip
-    lda drawpage
-    eor #$80
-    sta drawpage
-    bpl show_page1   ; pos = show 1, draw 2; neg = show 1, draw 1
-    bmi show_page2
 
 ; pageflip jump tables. JSR to one of these jumps and it will jump to the 
 ; correct version for the page. The rts in there will return to the caller
@@ -598,10 +664,10 @@ sprite_h
     .byte >APPLE_SPRITE9X11, >APPLE_SPRITE9X11, >APPLE_SPRITE9X11, >APPLE_SPRITE9X11, >APPLE_SPRITE9X11, >APPLE_SPRITE9X11, >MOLDY_BURGER, >MOLDY_BURGER
 
 sprite_x
-    .byte 80, 164, 33, 245, 4, 9, 255, 18
+    .byte 80, 164, 33, 45, 4, 9, 180, 18
 
 sprite_y
-    .byte 116, 126, 40, 60, 80, 100, 120, 140
+    .byte 116, 126, 40, 60, 80, 100, 9, 140
 
 sprite_dx
     .byte 1, 2, 3, 4, 1, 2, 0, 1
