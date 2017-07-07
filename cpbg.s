@@ -38,15 +38,15 @@ scratch_col   .ds 1
 
     *= $0020
 ; required variables for HiSprite
+damageindex   .ds 1
+damageindex1  .ds 1
+damageindex2  .ds 1
 bgstore       .ds 2
 damage_w      .ds 1
 damage_h      .ds 1
 damageptr     .ds 2
-damageindex   .ds 1
 damageptr1    .ds 2
-damageindex1  .ds 1
 damageptr2    .ds 2
-damageindex2  .ds 1
 hgrhi         .ds 1    ; either $20 or $40, the base of each hgr screen
 hgrselect     .ds 1    ; either $00 or $60, used as xor mask for HGRROWS_H1
 
@@ -91,7 +91,53 @@ gameloop
     jsr userinput
     jsr movestart
     jsr restorebg_driver
+    jsr wait
     jmp gameloop
+
+restorebg_init
+    rts
+
+restorebg_driver
+    ; copy damaged characters back to screen
+    ;jsr copytexthgr
+    ldy #0
+    sty param_count
+restorebg_loop1 ldy param_count
+    cpy damageindex
+    bcc restorebg_cont  ; possible there's no damage, so have to check first
+    ldy #0
+    sty damageindex  ; clear damage index for this page
+    rts
+restorebg_cont lda (damageptr),y ; groups of 4 x1 -> x2, y1 -> y2
+    sta param_x
+    iny
+    lda (damageptr),y
+    sta param_col
+    iny
+    lda (damageptr),y
+    sta param_y
+    iny
+    lda (damageptr),y
+    sta param_row
+    iny
+    sty param_count
+
+    ldy param_y
+restorebg_row lda textrows_h,y
+    sta restorebg_row_smc+2
+    lda textrows_l,y
+    sta restorebg_row_smc+1
+    ldx param_x
+restorebg_row_smc lda $ffff,x
+    jsr fastfont
+    inx
+    cpx param_col
+    bcc restorebg_row_smc
+    iny
+    cpy param_row
+    beq restorebg_row
+    bcc restorebg_row
+    bcs restorebg_loop1
 
 userinput
     lda KEYBOARD
@@ -182,6 +228,7 @@ input_space
     jmp debugflipscreens
 
 input_period
+    jsr wait
     lda KEYBOARD
     bpl input_period
     cmp #$80 + 'P'
@@ -255,9 +302,10 @@ initbackground
     jsr copytexthgrslow
     jsr copytexthgr
     jsr copytexthgrslow
+.endif
+    jsr pageflip
     jsr copytexthgr
     jsr pageflip
-.endif
     jsr copytexthgr
     rts
 
@@ -266,10 +314,9 @@ filltext
     ldy #0    ; Loop a bit
     sty COUNTER1
 ib_outer
-    lda textrow_h,y
-    ora #4
+    lda textrows_h,y
     sta textptr+1
-    lda textrow_l,y
+    lda textrows_l,y
     sta textptr
     tya
     adc #32
@@ -293,10 +340,10 @@ ib_inner
 copytexthgr
     ldy #0      ; y is rows
 copytexthgr_outer
-    lda textrow_h,y
+    lda textrows_h,y
     ora #4
     sta copytexthgr_src_smc+2
-    lda textrow_l,y
+    lda textrows_l,y
     sta copytexthgr_src_smc+1
     ldx #0      ; x is columns
 copytexthgr_src_smc
@@ -311,35 +358,6 @@ copytexthgr_dest_smc
     bcc copytexthgr_outer
     rts
 
-copytexthgrslow
-     LDA #0
-     STA temprow
-
-?1   LDY temprow        ; Y = row
-     CPY #24        ; 24 rows is #$18
-     BCS ?3         ; Y >= 24
-     LDX #0
-     STX tempcol        ; X = col
-     JSR SetCursorColRow
-     and ~10011111
-     clc            ; A = HgrHiY[ row ]
-     adc #4       ; Convert HgrHiY to TextHiY byte
-     STA TEXTPTR+1      ; A -= 0x1C -> TxtHi
-     LDA hgrptr     ; A = HgrLoY[ row ]
-     STA TEXTPTR    ;           -> TxtLo
-     LDY tempcol
-?2   LDA (TEXTPTR),Y
-     AND #$7F
-     JSR DrawCharCol
-     CPY #$28       ; 40 cols is #$28
-     BCC ?2         ; Y < 40
-     INC temprow
-     BNE ?1         ; always
-?3   RTS
-
-    rts
-
-
 pageflip
     lda drawpage
     eor #$80
@@ -351,11 +369,10 @@ draw_to_page1 lda #$00
     sta hgrselect
     lda #$20
     sta hgrhi
-    lda damageptr   ; save other page's damage pointer
-    sta damageptr2
-    lda damageptr1
-    sta damageptr
-    lda damageptr1+1
+    lda damageindex   ; save other page's damage pointer
+    sta damageindex2
+
+    lda #DAMAGEPAGE1  ; point to page 1's damage area
     sta damageptr+1
     lda damageindex1
     sta damageindex
@@ -374,11 +391,10 @@ draw_to_page2 lda #$60
     sta hgrselect
     lda #$40
     sta hgrhi
-    lda damageptr   ; save other page's damage pointer
-    sta damageptr1
-    lda damageptr2
-    sta damageptr
-    lda damageptr2+1
+    lda damageindex   ; save other page's damage pointer
+    sta damageindex1
+
+    lda #DAMAGEPAGE2  ; point to page 2's damage area
     sta damageptr+1
     lda damageindex2
     sta damageindex
@@ -395,18 +411,13 @@ draw_to_page2 lda #$60
 
 fastfont jmp $ffff
 
-restorebg_init
-    rts
-
-restorebg_driver
-    ; copy damaged characters back to screen
-    jsr copytexthgr
-    rts
-
 
 
 ; Draw sprites by looping through the list of sprites
 renderstart
+    ldy #0
+    sty damageindex
+
     lda #sprite_l - sprite_active
     sta param_count
     inc renderroundrobin_smc+1
@@ -682,7 +693,15 @@ sprite_diry
     .byte 1, 1, 1, 1, -1, -1, -1, -1
 
 
+textrows_l
+        .byte $00, $80, $00, $80, $00, $80, $00, $80
+        .byte $28, $a8, $28, $a8, $28, $a8, $28, $a8
+        .byte $50, $d0, $50, $d0, $50, $d0, $50, $d0
+textrows_h
+        .byte $04, $04, $05, $05, $06, $06, $07, $07
+        .byte $04, $04, $05, $05, $06, $06, $07, $07
+        .byte $04, $04, $05, $05, $06, $06, $07, $07
+
 
 .include cpbg-sprite-driver.s
-.include drawfont.s
 .include fatfont.s
