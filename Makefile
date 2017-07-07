@@ -42,10 +42,14 @@ multitestbg.dsk: HiSprite.py multitestbg.s
 cpbg-sprite-driver.s: HiSprite.py $(BWSPRITE)
 	python HiSprite.py -a mac65 -p 6502 -s hgrbw -m -k -d -g -f fatfont128.dat -o cpbg $(BWSPRITE) $(COLORSPRITE)
 
-cpbg.dsk: HiSprite.py cpbg.s cpbg-sprite-driver.s
+cpbg.xex: cpbg.s cpbg-sprite-driver.s
 	atasm -mae -ocpbg.xex cpbg.s -Lcpbg.var -gcpbg.lst
-	#atrcopy cpbg.dsk boot -d partycrasher-software.hgr@2000 player-missile.hgr@4000 -b cpbg.xex --brun 6000 -f
+
+cpbg.dsk: HiSprite.py cpbg.xex
 	atrcopy cpbg.dsk boot -b cpbg.xex --brun 6000 -f
+
+titles.dsk: HiSprite.py cpbg.xex
+	atrcopy titles.dsk boot -d partycrasher-software.hgr@2000 player-missile.hgr@4000 -b cpbg.xex --brun 6000 -f
 
 fonttest.dsk: fonttest.s fatfont.s
 	atasm -ofonttest.xex fonttest.s -Lfonttest.var -gfonttest.lst
