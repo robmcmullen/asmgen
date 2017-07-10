@@ -294,6 +294,7 @@ initsprites
     rts
 
 initbackground
+    jsr show_page1
     jsr filltext
 .if DEBUG_BACKGROUND
     jsr pageflip
@@ -303,10 +304,14 @@ initbackground
     jsr copytexthgr
     jsr copytexthgrslow
 .endif
-    jsr pageflip
-    jsr copytexthgr
-    jsr pageflip
-    jsr copytexthgr
+    jsr copytexthgr  ; page2 becomes the source
+    jsr wipeclear1
+    jsr wipe2to1
+
+;    jsr pageflip
+;    jsr copytexthgr
+;    jsr pageflip
+;    jsr copytexthgr
     rts
 
 
@@ -337,6 +342,63 @@ ib_inner
     rts
 
 
+wipeclear1 ldy #0
+    sty param_y
+wipeclear1_loop lda HGRROWS_L,y
+    sta wipeclear1_save_smc+1
+    lda HGRROWS_H1,y
+    sta wipeclear1_save_smc+2
+    ldx #39
+    lda #$ff
+wipeclear1_save_smc sta $ffff,x
+    dex
+    bpl wipeclear1_save_smc
+    ldx #0
+wipeclear1_wait nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    dex
+    bne wipeclear1_wait
+    inc param_y
+    ldy param_y
+    cpy #192
+    bcc wipeclear1_loop
+    rts
+
+wipe2to1 ldy #0
+    sty param_y
+wipe2to1_loop lda HGRROWS_H2,y
+    sta wipe2to1_load_smc+2
+    lda HGRROWS_L,y
+    sta wipe2to1_load_smc+1
+    sta wipe2to1_save_smc+1
+    lda HGRROWS_H1,y
+    sta wipe2to1_save_smc+2
+    ldx #39
+wipe2to1_load_smc lda $ffff,x
+wipe2to1_save_smc sta $ffff,x
+    dex
+    bpl wipe2to1_load_smc
+    ldx #0
+wipe2to1_wait nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    dex
+    bne wipe2to1_wait
+    inc param_y
+    ldy param_y
+    cpy #192
+    bcc wipe2to1_loop
+    rts
+
+
+
 copytexthgr
     ldy #0      ; y is rows
 copytexthgr_outer
@@ -361,10 +423,11 @@ copytexthgr_dest_smc
 pageflip
     lda drawpage
     eor #$80
-    sta drawpage
     bpl show_page1   ; pos = show 1, draw 2; neg = show 1, draw 1
 
-show_page2 bit TXTPAGE2 ; show page 2, work on page 1
+show_page2 lda #$80
+    sta drawpage
+    bit TXTPAGE2 ; show page 2, work on page 1
 draw_to_page1 lda #$00
     sta hgrselect
     lda #$20
@@ -386,7 +449,9 @@ draw_to_page1 lda #$00
     sta copytexthgr_dest_smc+2
     rts
 
-show_page1 bit TXTPAGE1 ; show page 1, work on page 2
+show_page1 lda #0
+    sta drawpage
+    bit TXTPAGE1 ; show page 1, work on page 2
 draw_to_page2 lda #$60
     sta hgrselect
     lda #$40
