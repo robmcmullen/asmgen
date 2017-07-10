@@ -70,7 +70,6 @@ MAXPOSX     = 220
 MAXPOSY     = 192 - 16
 
 ; debug flags
-DEBUG_BACKGROUND = 0
 
 
     *= $6000
@@ -296,14 +295,6 @@ initsprites
 initbackground
     jsr show_page1
     jsr filltext
-.if DEBUG_BACKGROUND
-    jsr pageflip
-    bit TXTPAGE1
-    jsr copytexthgr
-    jsr copytexthgrslow
-    jsr copytexthgr
-    jsr copytexthgrslow
-.endif
     jsr copytexthgr  ; page2 becomes the source
     jsr wipeclear1
     jsr wipe2to1
@@ -663,63 +654,7 @@ clr2
     ldx clr1+2
     cpx #$40
     bcc clr1
-
-.if DEBUG_BACKGROUND
-; put the same info on both screens
-clrscr2
-    ldy #1
-clrouter
-    ldx #0
-clrloop
-    lda HGRROWS_H1,x
-    sta scratch_addr+1
-    lda HGRROWS_H2,x
-    sta scratch_ptr+1
-    lda HGRROWS_L,x
-    sta scratch_addr
-    sta scratch_ptr
-    lda tophalf,y
-    cpx #96
-    bcc clrwrite
-    lda bothalf,y
-clrwrite
-    sta (scratch_addr),y
-    sta (scratch_ptr),y
-    inx
-    cpx #192
-    bcc clrloop
-    iny
-    cpy #40
-    bcs clrend
-    bne clrouter
-clrend
     rts
-
-tophalf
-    .byte 0
-    .byte $88, ~01010101, ~00101010, ~01010101, ~00101010, ~01010101
-    .byte $08, ~00101010, ~01010101, ~00101010, ~01010101, ~00101010
-    .byte $10, ~01010101, ~00101010, ~01010101, ~00101010, ~01010101
-    .byte $1c, ~00101010, ~01010101, ~00101010, ~01010101, ~00101010
-    .byte $88, ~01010101, ~00101010, ~01010101, ~00101010, ~01010101
-    .byte $9c, ~01010101, ~00101010, ~01010101, ~00101010, ~01010101
-    .byte $9c, ~00101010, ~01010101, ~00101010, ~01010101, ~00101010
-    .byte $1c, ~01010101, ~00101010, ~01010101, ~00101010, ~01010101
-
-bothalf
-    .byte 0
-    .byte $9c, ~11010101, ~10101010, ~11010101, ~10101010, ~11010101
-    .byte ~10001000, ~10101010, ~11010101, ~10101010, ~11010101, ~10101010
-    .byte ~00010000, ~11010101, ~10101010, ~11010101, ~10101010, ~11010101
-    .byte $08, ~10101010, ~11010101, ~10101010, ~11010101, ~10101010
-    .byte $9c, ~11010101, ~10101010, ~11010101, ~10101010, ~11010101
-    .byte $9c, ~11010101, ~10101010, ~11010101, ~10101010, ~11010101
-    .byte $88, ~11010101, ~10101010, ~11010101, ~10101010, ~11010101
-    .byte $08, ~10101010, ~11010101, ~10101010, ~11010101, ~10101010
-
-.else ; !DEBUG_BACKGROUND
-    rts
-.endif
 
 
 ; Sprite data is interleaved so a simple indexed mode can be used. This is not
