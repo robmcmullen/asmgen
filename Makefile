@@ -3,7 +3,7 @@ COLORSPRITE = moldy_burger.png
 #COLORSPRITE = apple.png
 BWSPRITE = apple-sprite9x11.png
 
-all: cpbg.dsk fonttest.dsk
+all: cpbg.dsk fonttest.dsk titles.dsk
 
 rowlookup.s: HiSprite.py
 	python HiSprite.py -a mac65 -p 6502 -r > rowlookup.s
@@ -48,8 +48,19 @@ cpbg.xex: cpbg.s cpbg-sprite-driver.s
 cpbg.dsk: HiSprite.py cpbg.xex
 	atrcopy cpbg.dsk boot -b cpbg.xex --brun 6000 -f
 
-titles.dsk: HiSprite.py cpbg.xex
-	atrcopy titles.dsk boot -d partycrasher-software.hgr@2000 player-missile.hgr@4000 -b cpbg.xex --brun 6000 -f
+player-missile.hgr: HiSprite.py player-missile.png
+	python HiSprite.py player-missile.png
+
+kansasfest-disclaimer.hgr: HiSprite.py kansasfest-disclaimer.png
+	python HiSprite.py -i color kansasfest-disclaimer.png
+
+partycrasher-software.hgr: HiSprite.py partycrasher-software.png
+	python HiSprite.py -i color partycrasher-software.png
+
+titles.dsk: HiSprite.py cpbg.xex player-missile.hgr kansasfest-disclaimer.hgr partycrasher-software.hgr
+	atrcopy titles.dsk boot -d kansasfest-disclaimer.hgr@2000 partycrasher-software.hgr@4000 player-missile.hgr@2000 -b cpbg.xex --brun 6000 -f
+	#atrcopy titles.dsk boot -d partycrasher-software.bin@2000 kansasfest-disclaimer.bin@4000 player-missile-bg.bin@2000 -b cpbg.xex --brun 6000 -f
+	#atrcopy titles.dsk boot -d player-missile.hgr@2000 -b cpbg.xex --brun 6000 -f
 
 fonttest.dsk: fonttest.s fatfont.s
 	atasm -ofonttest.xex fonttest.s -Lfonttest.var -gfonttest.lst
@@ -61,3 +72,4 @@ clean:
 	rm -f colortest.dsk colortest.xex colortest.var colortest.lst
 	rm -f multitest.dsk multitest.xex multitest.var multitest.lst multitest-sprite-driver.s multitest-bwsprite.s multitest-hgrcols-7x1.s multitest-hgrrows.s
 	rm -f cpbg.dsk cpbg.xex cpbg.var cpbg.lst cpbg-sprite-driver.s cpbg-bwsprite.s cpbg-hgrcols-7x1.s cpbg-hgrrows.s
+	rm -f player-missile.hgr kansasfest-disclaimer.hgr partycrasher-software.hgr

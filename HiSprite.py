@@ -8,6 +8,7 @@ import re
 
 # external packages
 import png  # package name is "pypng" on pypi.python.org
+import numpy as np
 
 
 def slugify(s):
@@ -206,12 +207,10 @@ class Listing(object):
 class Sprite(Listing):
     backing_store_sizes = set()
 
-    def __init__(self, pngfile, assembler, screen, xdraw=False, use_mask=False, backing_store=False, clobber=False, double_buffer=False, damage=False, processor="any", name=""):
+    def __init__(self, slug, pngdata, assembler, screen, xdraw=False, use_mask=False, backing_store=False, clobber=False, double_buffer=False, damage=False, processor="any"):
         Listing.__init__(self, assembler)
+        self.slug = slug
         self.screen = screen
-
-        reader = png.Reader(pngfile)
-        pngdata = reader.asRGB8()
 
         self.xdraw = xdraw
         self.use_mask = use_mask
@@ -220,9 +219,6 @@ class Sprite(Listing):
         self.double_buffer = double_buffer
         self.damage = damage
         self.processor = processor
-        if not name:
-            name = os.path.splitext(pngfile)[0]
-        self.slug = slugify(name)
         self.width = pngdata[0]
         self.height = pngdata[1]
         self.pixel_data = list(pngdata[2])
@@ -528,6 +524,17 @@ class HGR(ScreenFormat):
 
         return "00"
 
+    def bits_for_bw(self, pixel):
+        if pixel == self.white:
+            return "1"
+        else:
+            return "0"
+
+    def bits_for_bw_mask(self, pixel):
+        if pixel == self.key:
+            return "1"
+        return "0"
+
     def high_bit_for_color(self, pixel):
         # Note that we prefer high-bit white because blue fringe is less noticeable than magenta.
         high_bit = "0"
@@ -643,15 +650,10 @@ class HGRBW(HGR):
     bits_per_pixel = 1
 
     def bits_for_color(self, pixel):
-        if pixel == self.white:
-            return "1"
-        else:
-            return "0"
+        return self.bits_for_bw(pixel)
 
     def bits_for_mask(self, pixel):
-        if pixel == self.key:
-            return "1"
-        return "0"
+        return self.bits_for_bw_mask(pixel)
 
     def pixel_color(self, pixel_data, row, col):
         r = pixel_data[row][col*3]
@@ -980,6 +982,165 @@ class FastFont(Listing):
                 self.byte("$%02x" % ord(data[index]), 16)
 
 
+class HGRByLine(HGR):
+    """Either a color line or a BW line, depending on the contents of each
+    line.
+
+    If the entire line has only BW pixels, look at all the pixel data to
+    preserve all 280 pixels across.
+
+    Otherwise, look at every other pixel and convert as the normal HGR
+    """
+    bits_per_pixel = 1
+
+    def __init__(self, color="line"):
+        HGR.__init__(self)
+        if color == "color":
+            self.scan_line = self.scan_line_color
+        elif color == "bw":
+            self.scan_line = self.scan_line_bw
+        else:
+            self.scan_line = self.scan_line_default
+
+    def is_pixel_on(self, pixel_data, row, col):
+        r = pixel_data[row][col*3]
+        g = pixel_data[row][col*3+1]
+        b = pixel_data[row][col*3+2]
+        # any pixel that is not super dark is considered on
+        return r>25 or g>25 or b>25
+
+    def scan_line_default(self, pixel_data, row, width):
+        color_count = 0
+        bw_count = 0
+        for col in range(1, width):
+            current = self.pixel_color(pixel_data, row, col)
+            if current == self.white:
+                bw_count += 1
+            elif current != self.black and current != self.key:
+                color_count += 1
+        # print("row: %d, bw=%d, color=%d" % (row, bw_count, color_count))
+        if color_count > 1:
+            return self.color_processor
+        return self.bw_processor
+
+    def scan_line_color(self, pixel_data, row, width):
+        return self.color_processor
+
+    def scan_line_bw(self, pixel_data, row, width):
+        return self.bw_processor
+
+    def color_processor(self, pixel_data, row, width):
+        bit_stream = ""
+        high_bits = ""
+        # Compute raw bitstream for row from PNG pixels, skipping every other
+        # for color rendering
+        for byte_index in range(0, width, 2*7):
+            h = None
+            # take high bit for each byte using the first non-black pixel
+            for bit_index in range(0, 2*7, 2):
+                pixel_index = byte_index + bit_index
+                pixel = self.pixel_color(pixel_data,row,pixel_index)
+                if h is None and pixel != self.black and pixel != self.key:
+                    h = self.high_bit_for_color(pixel)
+                bit_stream += self.bits_for_color(pixel)
+            if h is None:
+                h = "0"
+            high_bits += h * 2*7
+        
+        return self.split_bit_stream(width, bit_stream, high_bits)
+
+    def bw_processor(self, pixel_data, row, width):
+        bit_stream = ""
+        high_bits = ""
+        # Compute raw bitstream for row from PNG pixels, skipping every other
+        # for color rendering
+        for pixel_index in range(0, width):
+            pixel = self.pixel_color(pixel_data,row,pixel_index)
+            bit_stream += self.bits_for_bw(pixel)
+            h = self.high_bit_for_color(pixel)
+            high_bits += h
+
+        return self.split_bit_stream(width, bit_stream, high_bits)
+
+    def split_bit_stream(self, width, bit_stream, high_bits):
+        # print bit_stream
+        # print high_bits
+
+        # Split bitstream into bytes
+        byte_width = width // 7
+        bit_pos = 0
+        filler_bit = "0"
+        byte_splits = np.zeros((byte_width), dtype=np.uint8)
+
+        for byte_index in range(byte_width):
+            remaining_bits = len(bit_stream) - bit_pos
+                
+            bit_chunk = ""
+            
+            if remaining_bits < 0:
+                bit_chunk = filler_bit * 7
+            else:   
+                if remaining_bits < 7:
+                    bit_chunk = bit_stream[bit_pos:]
+                    bit_chunk += filler_bit * (7-remaining_bits)
+                else:   
+                    bit_chunk = bit_stream[bit_pos:bit_pos+7]
+            
+            bit_chunk = bit_chunk[::-1]
+            byte = high_bits[bit_pos] + bit_chunk
+            #print("%d: %s" % (byte_index, byte))
+            byte_splits[byte_index] = int(byte, 2)
+            bit_pos += 7
+        
+        return byte_splits
+
+    def lines_from_pixels(self, source):
+        lines = np.zeros((192, 40), dtype=np.uint8)
+
+        bit_delegate = self.bits_for_color
+        high_bit_delegate = self.high_bit_for_color
+        filler_bit = "0"
+
+        for row in range(source.height):
+            processor = self.scan_line(source.pixel_data, row, source.width)
+            lines[row] = processor(source.pixel_data, row, source.width)
+
+        return lines
+
+
+class Image(object):
+    def __init__(self, pngdata, fileroot, color):
+        self.screen = HGRByLine(color)
+
+        self.width = pngdata[0]
+        self.height = pngdata[1]
+        self.pixel_data = list(pngdata[2])
+        self.convert(fileroot)
+
+    def convert(self, fileroot):
+        lines = self.screen.lines_from_pixels(self)
+        output = "%s.hgr.png" % fileroot
+        with open(output, "wb") as fh:
+            # output PNG
+            w = png.Writer(280, 192, greyscale=True, bitdepth=1)
+            bits = np.fliplr(np.unpackbits(lines.ravel()).reshape(-1,8)[:,1:8])
+            bw = bits.reshape((192, 280))
+            w.write(fh, bw)
+            print("created bw representation of HGR screen: %s" % output)
+
+        offsets = self.screen.generate_row_addresses(0)
+        # print ["%04x" % i for i in offsets]
+        screen = np.zeros(8192, dtype=np.uint8)
+        for row in range(192):
+            offset = offsets[row]
+            screen[offset:offset+40] = lines[row]
+
+        output = "%s.hgr" % fileroot
+        with open(output, "wb") as fh:
+            fh.write(screen)
+            print("created HGR screen: %s" % output)
+
+
 if __name__ == "__main__":
     disclaimer = '''
 ; This file was generated by HiSprite.py, a sprite compiler by Quinn Dunki.
@@ -996,6 +1157,7 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--assembler", default="cc65", choices=["cc65","mac65"], help="Assembler syntax (default: %(default)s)")
     parser.add_argument("-p", "--processor", default="any", choices=["any","6502", "65C02"], help="Processor type (default: %(default)s)")
     parser.add_argument("-s", "--screen", default="hgrcolor", choices=["hgrcolor","hgrbw"], help="Screen format (default: %(default)s)")
+    parser.add_argument("-i", "--image", default="line", choices=["line", "color","bw"], help="Screen format used for full page image conversion (default: %(default)s)")
     parser.add_argument("-n", "--name", default="", help="Name for generated assembly function (default: based on image filename)")
     parser.add_argument("-k", "--clobber", action="store_true", default=False, help="don't save the registers on the stack")
     parser.add_argument("-d", "--double-buffer", action="store_true", default=False, help="add code blit to either page (default: page 1 only)")
@@ -1028,19 +1190,30 @@ if __name__ == "__main__":
 
     for pngfile in options.files:
         try:
-            sprite_code = Sprite(pngfile, assembler, screen, options.xdraw, options.mask, options.backing_store, options.clobber, options.double_buffer, options.damage, options.processor, options.name)
+            reader = png.Reader(pngfile)
+            pngdata = reader.asRGB8()
         except RuntimeError, e:
             print "%s: %s" % (pngfile, e)
             sys.exit(1)
         except png.Error, e:
             print "%s: %s" % (pngfile, e)
             sys.exit(1)
-        listings.append(sprite_code)
-        if options.output_prefix:
-            r = RowLookup(assembler, screen)
-            luts[r.slug] = r
-            c = ColLookup(assembler, screen)
-            luts[c.slug] = c
+
+        name = options.name if options.name else os.path.splitext(pngfile)[0]
+        slug = slugify(name)
+
+        w, h = pngdata[0:2]
+        if w == 280 and h == 192:
+            # Full screen conversion!
+            Image(pngdata, name, options.image.lower())
+        else:
+            sprite_code = Sprite(slug, pngdata, assembler, screen, options.xdraw, options.mask, options.backing_store, options.clobber, options.double_buffer, options.damage, options.processor)
+            listings.append(sprite_code)
+            if options.output_prefix:
+                r = RowLookup(assembler, screen)
+                luts[r.slug] = r
+                c = ColLookup(assembler, screen)
+                luts[c.slug] = c
 
     listings.extend([luts[k] for k in sorted(luts.keys())])
 
