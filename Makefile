@@ -52,13 +52,22 @@ player-missile.hgr: HiSprite.py player-missile.png
 	python HiSprite.py player-missile.png
 
 kansasfest-disclaimer.hgr: HiSprite.py kansasfest-disclaimer.png
-	python HiSprite.py -i color kansasfest-disclaimer.png
+	python HiSprite.py -i bw kansasfest-disclaimer.png
+
+blue-gradient.hgr: blue-gradient-bot.png blue-gradient-top.png
+	../tohgr-source/tohgr blue-gradient-bot.png
+	python HiSprite.py -i bw blue-gradient-top.png
+	python HiSprite.py --merge 96 -o blue-gradient blue-gradient-bot.hgr blue-gradient-top.hgr
 
 partycrasher-software.hgr: HiSprite.py partycrasher-software.png
-	python HiSprite.py -i color partycrasher-software.png
+	../tohgr-source/tohgr partycrasher-software.png
+	cp partycrasher-software.hgr partycrasher-software-top.hgr
+	python HiSprite.py -i bw partycrasher-software.png
+	cp partycrasher-software.hgr partycrasher-software-bot.hgr
+	python HiSprite.py --merge 116 -o partycrasher-software partycrasher-software-top.hgr partycrasher-software-bot.hgr
 
-titles.dsk: HiSprite.py cpbg.xex player-missile.hgr kansasfest-disclaimer.hgr partycrasher-software.hgr
-	atrcopy titles.dsk boot -d kansasfest-disclaimer.hgr@2000 partycrasher-software.hgr@4000 player-missile.hgr@2000 -b cpbg.xex --brun 6000 -f
+titles.dsk: HiSprite.py cpbg.xex player-missile.hgr kansasfest-disclaimer.hgr partycrasher-software.hgr blue-gradient.hgr
+	atrcopy titles.dsk boot -d blue-gradient.hgr@2000 partycrasher-software.hgr@4000 player-missile.hgr@2000 -b cpbg.xex --brun 6000 -f
 	#atrcopy titles.dsk boot -d partycrasher-software.bin@2000 kansasfest-disclaimer.bin@4000 player-missile-bg.bin@2000 -b cpbg.xex --brun 6000 -f
 	#atrcopy titles.dsk boot -d player-missile.hgr@2000 -b cpbg.xex --brun 6000 -f
 
@@ -72,4 +81,4 @@ clean:
 	rm -f colortest.dsk colortest.xex colortest.var colortest.lst
 	rm -f multitest.dsk multitest.xex multitest.var multitest.lst multitest-sprite-driver.s multitest-bwsprite.s multitest-hgrcols-7x1.s multitest-hgrrows.s
 	rm -f cpbg.dsk cpbg.xex cpbg.var cpbg.lst cpbg-sprite-driver.s cpbg-bwsprite.s cpbg-hgrcols-7x1.s cpbg-hgrrows.s
-	rm -f player-missile.hgr kansasfest-disclaimer.hgr partycrasher-software.hgr
+	rm -f player-missile.hgr kansasfest-disclaimer.hgr partycrasher-software.hgr blue-gradient.hgr

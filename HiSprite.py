@@ -524,11 +524,17 @@ class HGR(ScreenFormat):
 
         return "00"
 
-    def bits_for_bw(self, pixel):
+    def bits_for_bw(self, pixel, pixel_index=0):
+        # if pixel == self.green or pixel == self.orange:
+        #     pair = "01"
+        # elif pixel == self.blue or pixel == self.magenta:
+        #     pair = "10"
+        # elif pixel == self.white:
         if pixel == self.white:
             return "1"
         else:
             return "0"
+        return pair[pixel_index & 1]
 
     def bits_for_bw_mask(self, pixel):
         if pixel == self.key:
@@ -546,10 +552,14 @@ class HGR(ScreenFormat):
     def high_bit_for_mask(self, pixel):
         return "0"
 
-    def pixel_color(self, pixel_data, row, col):
+    def get_rgb(self, pixel_data, row, col):
         r = pixel_data[row][col*3]
         g = pixel_data[row][col*3+1]
         b = pixel_data[row][col*3+2]
+        return r, g, b
+
+    def pixel_color(self, pixel_data, row, col):
+        r, g, b = self.get_rgb(pixel_data, row, col)
 
         rhi = r == 255
         rlo = r == 0
@@ -656,9 +666,7 @@ class HGRBW(HGR):
         return self.bits_for_bw_mask(pixel)
 
     def pixel_color(self, pixel_data, row, col):
-        r = pixel_data[row][col*3]
-        g = pixel_data[row][col*3+1]
-        b = pixel_data[row][col*3+2]
+        r, g, b = self.get_rgb(pixel_data, row, col)
         color = self.black
         
         if abs(r - g) < 16 and abs(g - b) < 16 and r!=0 and r!=255:   # Any grayish color is chroma key
@@ -1003,9 +1011,7 @@ class HGRByLine(HGR):
             self.scan_line = self.scan_line_default
 
     def is_pixel_on(self, pixel_data, row, col):
-        r = pixel_data[row][col*3]
-        g = pixel_data[row][col*3+1]
-        b = pixel_data[row][col*3+2]
+        r, g, b = self.get_rgb(pixel_data, row, col)
         # any pixel that is not super dark is considered on
         return r>25 or g>25 or b>25
 
@@ -1056,7 +1062,7 @@ class HGRByLine(HGR):
         # for color rendering
         for pixel_index in range(0, width):
             pixel = self.pixel_color(pixel_data,row,pixel_index)
-            bit_stream += self.bits_for_bw(pixel)
+            bit_stream += self.bits_for_bw(pixel, pixel_index)
             h = self.high_bit_for_color(pixel)
             high_bits += h
 
@@ -1115,7 +1121,8 @@ class Image(object):
         self.width = pngdata[0]
         self.height = pngdata[1]
         self.pixel_data = list(pngdata[2])
-        self.convert(fileroot)
+        self.lines = self.convert(fileroot)
+        self.save(fileroot)
 
     def convert(self, fileroot):
         lines = self.screen.lines_from_pixels(self)
@@ -1127,17 +1134,49 @@ class Image(object):
             bw = bits.reshape((192, 280))
             w.write(fh, bw)
             print("created bw representation of HGR screen: %s" % output)
+        return lines
 
+    def save(self, fileroot, other=None, merge=96):
         offsets = self.screen.generate_row_addresses(0)
         # print ["%04x" % i for i in offsets]
         screen = np.zeros(8192, dtype=np.uint8)
+        lines = self.lines
         for row in range(192):
+            if other is not None and row == merge:
+                lines = other.lines
             offset = offsets[row]
             screen[offset:offset+40] = lines[row]
 
         output = "%s.hgr" % fileroot
         with open(output, "wb") as fh:
             fh.write(screen)
+            print("created HGR screen: %s" % output)
+
+
+class RawHGRImage(object):
+    def __init__(self, pathname):
+        self.screen = HGR()
+        self.raw = np.fromfile(pathname, dtype=np.uint8)
+        if len(self.raw) != 8192:
+            raise RuntimeError("Not HGR image size")
+
+    def merge(self, other, merge):
+        offsets = self.screen.generate_row_addresses(0)
+        # print ["%04x" % i for i in offsets]
+        screen = np.zeros(8192, dtype=np.uint8)
+        raw = self.raw
+        for row in range(192):
+            if row == merge:
+                # switch!
+                raw = other.raw
+            offset = offsets[row]
+            screen[offset:offset+40] = raw[offset:offset+40]
+        self.raw[:] = screen
+
+    def save(self, fileroot):
+        output = "%s.hgr" % fileroot
+        with open(output, "wb") as fh:
+            fh.write(self.raw)
             print("created HGR screen: %s" % output)
 
 
@@ -1158,6 +1197,7 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--processor", default="any", choices=["any","6502", "65C02"], help="Processor type (default: %(default)s)")
     parser.add_argument("-s", "--screen", default="hgrcolor", choices=["hgrcolor","hgrbw"], help="Screen format (default: %(default)s)")
     parser.add_argument("-i", "--image", default="line", choices=["line", "color","bw"], help="Screen format used for full page image conversion (default: %(default)s)")
+    parser.add_argument("--merge", default=0, type=int, help="Merge two HGR images, switching images at the scan line")
     parser.add_argument("-n", "--name", default="", help="Name for generated assembly function (default: based on image filename)")
     parser.add_argument("-k", "--clobber", action="store_true", default=False, help="don't save the registers on the stack")
     parser.add_argument("-d", "--double-buffer", action="store_true", default=False, help="add code blit to either page (default: page 1 only)")
@@ -1187,6 +1227,17 @@ if __name__ == "__main__":
 
     listings = []
     luts = {}  # dict of lookup tables to prevent duplication in output files
+
+    if options.merge > 0:
+        if len(options.files) != 2:
+            print("Merge requires exactly 2 HGR images")
+            parser.print_help()
+            sys.exit(1)
+        hgr1 = RawHGRImage(options.files[0])
+        hgr2 = RawHGRImage(options.files[1])
+        hgr1.merge(hgr2, options.merge)
+        hgr1.save(options.output_prefix)
+        sys.exit(0)
 
     for pngfile in options.files:
         try:
