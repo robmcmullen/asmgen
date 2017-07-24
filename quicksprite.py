@@ -1160,15 +1160,24 @@ class RawHGRImage(object):
         if len(self.raw) != 8192:
             raise RuntimeError("Not HGR image size")
 
-    def merge(self, other, merge):
+    def merge(self, other, merge_list):
         offsets = self.screen.generate_row_addresses(0)
         # print ["%04x" % i for i in offsets]
         screen = np.zeros(8192, dtype=np.uint8)
         raw = self.raw
+        others = [1,0,1,0,1,0,1,0]
+        choices = [raw, other.raw]
+        print others
+        merge = merge_list.pop(0)
         for row in range(192):
             if row == merge:
                 # switch!
-                raw = other.raw
+                i = others.pop(0)
+                raw = choices[i]
+                try:
+                    merge = merge_list.pop(0)
+                except IndexError:
+                    merge = -1
             offset = offsets[row]
             screen[offset:offset+40] = raw[offset:offset+40]
         self.raw[:] = screen
@@ -1203,7 +1212,7 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--processor", default="any", choices=["any","6502", "65C02"], help="Processor type (default: %(default)s)")
     parser.add_argument("-s", "--screen", default="hgrcolor", choices=["hgrcolor","hgrbw"], help="Screen format (default: %(default)s)")
     parser.add_argument("-i", "--image", default="line", choices=["line", "color","bw"], help="Screen format used for full page image conversion (default: %(default)s)")
-    parser.add_argument("--merge", default=0, type=int, help="Merge two HGR images, switching images at the scan line")
+    parser.add_argument("--merge", type=int, nargs="*", help="Merge two HGR images, switching images at the scan line")
     parser.add_argument("-n", "--name", default="", help="Name for generated assembly function (default: based on image filename)")
     parser.add_argument("-k", "--clobber", action="store_true", default=False, help="don't save the registers on the stack")
     parser.add_argument("-d", "--double-buffer", action="store_true", default=False, help="add code blit to either page (default: page 1 only)")
@@ -1234,11 +1243,12 @@ if __name__ == "__main__":
     listings = []
     luts = {}  # dict of lookup tables to prevent duplication in output files
 
-    if options.merge > 0:
+    if options.merge:
         if len(options.files) != 2:
             print("Merge requires exactly 2 HGR images")
             parser.print_help()
             sys.exit(1)
+        print options.merge
         hgr1 = RawHGRImage(options.files[0])
         hgr2 = RawHGRImage(options.files[1])
         hgr1.merge(hgr2, options.merge)
