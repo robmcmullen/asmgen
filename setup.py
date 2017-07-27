@@ -8,15 +8,15 @@ except ImportError:
 with open("README.rst", "r") as fp:
     long_description = fp.read()
 
-scripts = ["quicksprite.py"]
+scripts = ["asmgen.py"]
 
-setup(name="quicksprite",
+setup(name="asmgen",
         version="1.0",
         author="Rob McMullen",
         author_email="feedback@playermissile.com",
-        url="https://github.com/robmcmullen/quicksprite",
+        url="https://github.com/robmcmullen/asmgen",
         scripts=scripts,
-        description="Sprite compiler for Apple ][ and Atari 8-bit",
+        description="6502 code generator for Apple ][ and Atari 8-bit",
         long_description=long_description,
         license="GPL",
         classifiers=[

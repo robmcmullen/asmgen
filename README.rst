@@ -1,6 +1,6 @@
 
 ===========
-Quicksprite
+AsmGen
 ===========
 
 
@@ -8,8 +8,8 @@ Quicksprite
 Abstract
 ========
 
-Quicksprite - sprite compiler and related utilities for Apple ][ hi-res and
-Atari 8-bit software sprites
+AsmGen - code generator for sprites, fonts, and images for Apple ][ hi-res and
+Atari 8-bit computers
 
 This program creates 6502 (or 65c02) code that draws sprites using unrolled
 loops for each shifted shape. By removing data shifts, image lookups, and loops
@@ -34,10 +34,17 @@ Prerequisites
 * pypng
 
 
+Credits
+=======
+
+The sample font is modified from Michael Pohoreski's excellent tutorial on
+Apple II fonts: https://github.com/Michaelangel007/apple2_hgr_font_tutorial
+
+
 Disclaimer
 ==========
 
-Quicksprite, the 6502 sprite compiler sponsored by the Player/Missile Podcast
+AsmGen, the 6502 code generator sponsored by the Player/Missile Podcast
 Copyright (c) 2017 Rob McMullen (feedback@playermissile.com)
 
 This program is free software; you can redistribute it and/or modify
@@ -58,7 +65,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 Generated Code License
 ----------------------
 
-While the code for quicksprite itself is licensed under the GPLv3, the code it
+While the code for AsmGen itself is licensed under the GPLv3, the code it
 produces is licensed under the the Creative Commons Attribution 4.0
 International (CC BY 4.0), so you are free to use the generated code for
 commercial or non-commercial purposes.
