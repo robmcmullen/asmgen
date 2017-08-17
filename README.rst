@@ -34,18 +34,25 @@ Prerequisites
 * pypng
 
 
+Fork me!
+========
+
+The source is free and open, and lives on `github
+<https://github.com/robmcmullen/asmgen>`_, so clone and enhance at will!
+
+
 Credits
 =======
 
-The sample font is modified from Michael Pohoreski's excellent tutorial on
-Apple II fonts: https://github.com/Michaelangel007/apple2_hgr_font_tutorial
+The sample font is modified from Michael Pohoreski's `excellent tutorial on
+Apple II fonts <https://github.com/Michaelangel007/apple2_hgr_font_tutorial>`_.
 
 
 Disclaimer
 ==========
 
 AsmGen, the 6502 code generator sponsored by the Player/Missile Podcast
-Copyright (c) 2017 Rob McMullen (feedback@playermissile.com)
+Copyright (c) 2017 Rob McMullen
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
