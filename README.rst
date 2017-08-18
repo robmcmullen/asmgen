@@ -11,9 +11,11 @@ Abstract
 AsmGen - code generator for sprites, fonts, and images for Apple ][ hi-res and
 Atari 8-bit computers
 
-This program creates 6502 (or 65c02) code that draws sprites using unrolled
-loops for each shifted shape. By removing data shifts, image lookups, and loops
-the images can be drawn much faster than otherwise possible.
+This program creates 6502 (or 65c02) code for several tasks, including a sprite
+complier (based on `HiSprite <https://github.com/blondie7575/HiSprite>`_) that
+hardcodes sprite data in unrolled loops for each shifted shape. By removing
+image lookups and loops, sprites can be drawn much faster than otherwise
+possible.
 
 Other utilities include generating code for reporting screen damage, a fast
 bitmap font renderer, and generation for all the row/column lookup tables for
@@ -43,6 +45,10 @@ The source is free and open, and lives on `github
 
 Credits
 =======
+
+This program started life as a fork of Quinn Dunki's `HiSprite
+<https://github.com/blondie7575/HiSprite>`_ that she presented at KansasFest
+2017.
 
 The sample font is modified from Michael Pohoreski's `excellent tutorial on
 Apple II fonts <https://github.com/Michaelangel007/apple2_hgr_font_tutorial>`_.
