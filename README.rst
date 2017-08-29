@@ -43,12 +43,23 @@ The source is free and open, and lives on `github
 <https://github.com/robmcmullen/asmgen>`_, so clone and enhance at will!
 
 
-Credits
+History
 =======
 
-This program started life as a fork of Quinn Dunki's `HiSprite
+This program started life as a friendly fork of Quinn Dunki's `HiSprite
 <https://github.com/blondie7575/HiSprite>`_ that she presented at KansasFest
 2017.
+
+Her conclusion was that it was not that practical for the Apple II because of
+the limited memory and the number of sprite shifts needed. I wanted to port
+this to the Atari because it would require fewer shifted shapes in most of the
+graphics modes (e.g. only 4 shifted shapes for the commonly used ANTIC modes 13
+and 14) She told me that she was unlikely to continue work on sprite compiling
+but encouraged me to continue development.
+
+
+Additional Credits
+==================
 
 The sample font is modified from Michael Pohoreski's `excellent tutorial on
 Apple II fonts <https://github.com/Michaelangel007/apple2_hgr_font_tutorial>`_.
