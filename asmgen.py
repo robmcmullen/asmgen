@@ -113,7 +113,7 @@ class CC65(AssemblerSyntax):
 
 
 class Listing(object):
-    def __init__(self, assembler, slug="sprite-driver"):
+    def __init__(self, assembler, slug="asmgen-driver"):
         self.assembler = assembler
         self.lines = []
         self.current = None
