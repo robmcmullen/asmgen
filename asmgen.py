@@ -133,7 +133,7 @@ class Listing(object):
 
     def write(self, basename, disclaimer):
         filename = self.get_filename(basename)
-        print("Writing to %s" % filename)
+        print(f"Writing to {filename}")
         with open(filename, "w") as fh:
             fh.write(disclaimer + "\n\n")
             fh.write(str(self))
@@ -475,7 +475,7 @@ class ScreenFormat(object):
 
     def __init__(self):
         self.offsets = self.generate_row_offsets()
-        self.numX = self.screen_width / self.bits_per_pixel
+        self.numX = self.screen_width // self.bits_per_pixel
 
     def byte_width(self, png_width):
         return (png_width * self.bits_per_pixel + self.num_shifts - 1) // self.num_shifts + 1
@@ -505,7 +505,7 @@ class HGR(ScreenFormat):
 
     screen_width = 280
 
-    black,magenta,green,orange,blue,white,key = range(7)
+    black,magenta,green,orange,blue,white,key = list(range(7))
 
     def bits_for_color(self, pixel):
         if pixel == self.black or pixel == self.key:
@@ -712,7 +712,7 @@ class ColLookup(Listing):
         self.out("\n")
         self.label("DIV%d_%d" % (screen.num_shifts, screen.bits_per_pixel))
         for pixel in range(screen.numX):
-            self.byte("$%02x" % ((pixel / screen.num_shifts) * screen.bits_per_pixel), screen.num_shifts)
+            self.byte("$%02x" % ((pixel * screen.bits_per_pixel) // screen.num_shifts), screen.num_shifts)
 
         self.out("\n")
         self.label("MOD%d_%d" % (screen.num_shifts, screen.bits_per_pixel))
@@ -984,12 +984,12 @@ class FastFont(Listing):
         with open(font, 'rb') as fh:
             data = fh.read()
         num_bytes = len(data)
-        num_chars = num_bytes / 8
+        num_chars = num_bytes // 8
         for r in range(8):
             self.label("TransposedFontRow%d" % r)
             for i in range(num_chars):
                 index = i * 8 + r
-                self.byte("$%02x" % ord(data[index]), 16)
+                self.byte("$%02x" % data[index], 16)
 
 
 class HGRByLine(HGR):
@@ -1135,7 +1135,7 @@ class Image(object):
             bits = np.fliplr(np.unpackbits(lines.ravel()).reshape(-1,8)[:,1:8])
             bw = bits.reshape((192, 280))
             w.write(fh, bw)
-            print("created bw representation of HGR screen: %s" % output)
+            print(f"created bw representation of HGR screen: {output}")
         return lines
 
     def save(self, fileroot, other=None, merge=96):
@@ -1152,7 +1152,7 @@ class Image(object):
         output = "%s.hgr" % fileroot
         with open(output, "wb") as fh:
             fh.write(screen)
-            print("created HGR screen: %s" % output)
+            print(f"created HGR screen: {output}")
 
 
 class RawHGRImage(object):
@@ -1169,7 +1169,7 @@ class RawHGRImage(object):
         raw = self.raw
         others = [1,0,1,0,1,0,1,0]
         choices = [raw, other.raw]
-        print others
+        print(others)
         merge = merge_list.pop(0)
         for row in range(192):
             if row == merge:
@@ -1188,7 +1188,7 @@ class RawHGRImage(object):
         output = "%s.hgr" % fileroot
         with open(output, "wb") as fh:
             fh.write(self.raw)
-            print("created HGR screen: %s" % output)
+            print(f"created HGR screen:{output}")
 
 
 class FastScroll(Listing):
@@ -1282,9 +1282,9 @@ class RLE(Listing):
                 num_tokens = 1
             else:
                 num_tokens = 2
-            print("%d: run %d of %d (%d)" % (p, r, v, num_tokens))
+            print(f"{p}: run {r} of {v} ({num_tokens})")
             compressed_size += num_tokens
-        print("compressed size: %d" % compressed_size)
+        print(f"compressed size: {compressed_size}")
         return compressed_size
 
     def compress_high_bit_swap(self, rle):
@@ -1311,9 +1311,10 @@ class RLE(Listing):
                     num_tokens = 2
             else:
                 num_tokens = 2
-            print("%d: run %d of %d (%d)%s" % (p, r, v, num_tokens, "" if changed == high_bit_set else " high bit = %s" % high_bit_set))
+            high_bit_notice = "" if changed == high_bit_set else f" high bit = {high_bit_set}"
+            print(f"{p}: run {r} of {v} ({num_tokens}){high_bit_notice}")
             compressed_size += num_tokens
-        print("compressed size: %d" % compressed_size)
+        print(f"compressed size: {compressed_size}")
         return compressed_size
 
     def compress_run_copy(self, rle):
@@ -1333,17 +1334,17 @@ class RLE(Listing):
                 elif copy_start - p + r > 127:
                     num = p - copy_start
                     compressed_size += num + 1
-                    print("%d: copy %d (%d)" % (copy_start, num, num + 1))
+                    print(f"{copy_start}: copy {num} ({num + 1})")
                     copy_start = p
             else:
                 if copy_start >= 0:
                     num = p - copy_start
                     compressed_size += num + 1
-                    print("%d: copy %d (%d)" % (copy_start, num, num + 1))
+                    print(f"{copy_start}: copy {num} ({num + 1})")
                     copy_start = -1
                 while r > 2:
                     num = min(r, 128)
-                    print("%d: run %d of %d (2)" % (p, num, v))
+                    print(f"{p}: run {num} of {v} (2)" % (p, num, v))
                     p += num
                     r -= num
                     compressed_size += 2
@@ -1352,8 +1353,8 @@ class RLE(Listing):
         if copy_start >= 0:
             num = p - copy_start
             compressed_size += num + 1
-            print("%d: copy %d (%d)" % (copy_start, num, num + 1))
-        print("compressed size: %d" % compressed_size)
+            print(f"{copy_start}: copy {num} ({num + 1})")
+        print(f"compressed size: {compressed_size}")
         return compressed_size
 
 
@@ -1414,7 +1415,7 @@ if __name__ == "__main__":
     elif options.assembler.lower() == "mac65":
         assembler = Mac65()
     else:
-        print("Unknown assembler %s" % options.assembler)
+        print(f"Unknown assembler {options.assembler}")
         parser.print_help()
         sys.exit(1)
 
@@ -1423,7 +1424,7 @@ if __name__ == "__main__":
     elif options.screen.lower() == "hgrbw":
         screen = HGRBW()
     else:
-        print("Unknown screen format %s" % options.screen)
+        print(f"Unknown screen format {options.screen}")
         parser.print_help()
         sys.exit(1)
 
@@ -1435,7 +1436,7 @@ if __name__ == "__main__":
             print("Merge requires exactly 2 HGR images")
             parser.print_help()
             sys.exit(1)
-        print options.merge
+        print(options.merge)
         hgr1 = RawHGRImage(options.files[0])
         hgr2 = RawHGRImage(options.files[1])
         hgr1.merge(hgr2, options.merge)
@@ -1450,11 +1451,11 @@ if __name__ == "__main__":
             try:
                 reader = png.Reader(pngfile)
                 pngdata = reader.asRGB8()
-            except RuntimeError, e:
-                print "%s: %s" % (pngfile, e)
+            except RuntimeError as e:
+                print(f"{pngfile}: {e}")
                 sys.exit(1)
-            except png.Error, e:
-                print "%s: %s" % (pngfile, e)
+            except png.Error as e:
+                print(f"{pngfile}: {e}")
                 sys.exit(1)
 
             w, h = pngdata[0:2]
@@ -1502,7 +1503,7 @@ if __name__ == "__main__":
                 driver.include(genfile)
             driver.write(options.output_prefix, disclaimer)
         else:
-            print disclaimer
+            print(disclaimer)
 
             for section in listings:
-                print section
+                print(section)
