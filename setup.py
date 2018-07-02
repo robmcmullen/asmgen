@@ -11,7 +11,7 @@ with open("README.rst", "r") as fp:
 scripts = ["asmgen.py"]
 
 setup(name="asmgen",
-        version="1.0",
+        version="2.0",
         author="Rob McMullen",
         author_email="feedback@playermissile.com",
         url="https://github.com/robmcmullen/asmgen",
@@ -20,7 +20,7 @@ setup(name="asmgen",
         long_description=long_description,
         license="GPL",
         classifiers=[
-            "Programming Language :: Python :: 2.7",
+            "Programming Language :: Python :: 3.6",
             "Intended Audience :: Developers",
             "License :: OSI Approved :: GNU General Public License (GPL)",
             "Topic :: Software Development :: Libraries",

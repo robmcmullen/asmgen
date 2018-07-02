@@ -31,10 +31,11 @@ that can use python
 Prerequisites
 -------------
 
-* python 2.7 (but not 3.x yet)
+* python 3.6 (and above)
 * numpy
 * pypng
 
+Starting with version 2.0, python 2 support has been dropped.
 
 Fork me!
 ========
@@ -69,7 +70,7 @@ Disclaimer
 ==========
 
 AsmGen, the 6502 code generator sponsored by the Player/Missile Podcast
-Copyright (c) 2017 Rob McMullen
+Copyright (c) 2017-2018 Rob McMullen
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
