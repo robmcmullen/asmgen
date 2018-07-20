@@ -1244,6 +1244,39 @@ class FastScroll(Listing):
         self.out()
 
 
+class FastClear(Listing):
+    def __init__(self, assembler, screen):
+        Listing.__init__(self, assembler)
+        self.slug = "fastclear"
+        self.generate_table(screen, 0)
+
+    def generate_table(self, screen, offset):
+        base = 0x2000 + offset
+        label = "FASTCLEAR_%x" % (base)
+        end_label = "%s_RTS" % label
+        inner_label = "%s_INNER" % label
+        self.label(label)
+
+        smc_labels = []
+
+        # Have to use self-modifying code because assembler may not allow
+        # taking the hi/lo bytes of an address - 1
+        self.comment("A,X clobbered")
+        self.asm("lda #$aa")
+        self.asm("ldx #39")
+        self.label(inner_label)
+
+        s = screen.generate_row_addresses(base)
+        for r in range(screen.screen_height):
+            self.asm("sta $%04x,x" % s[r])
+        self.asm("dex")
+        self.asm("bmi %s\n" % end_label)
+        self.asm("jmp %s" % inner_label)
+        self.label(end_label)
+        self.asm("rts")
+        self.out()
+
+
 class RLE(Listing):
     def __init__(self, assembler, data):
         Listing.__init__(self, assembler)
@@ -1398,6 +1431,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--screen", default="hgrcolor", choices=["hgrcolor","hgrbw"], help="Screen format (default: %(default)s)")
     parser.add_argument("-i", "--image", default="line", choices=["line", "color","bw"], help="Screen format used for full page image conversion (default: %(default)s)")
     parser.add_argument("-l", "--scroll", default=0, type=int, help="Unrolled loop to scroll screen (default: %(default)s)")
+    parser.add_argument("--clear", action="store_true", default=False, help="Unrolled loop to clear screen (default: %(default)s)")
     parser.add_argument("--merge", type=int, nargs="*", help="Merge two HGR images, switching images at the scan line")
     parser.add_argument("--rle", action="store_true", default=False, help="Create run-length-encoded version of data (assumed to be an image)")
     parser.add_argument("--src", action="store_true", default=False, help="Create source version of binary file")
@@ -1491,6 +1525,9 @@ if __name__ == "__main__":
 
     if options.scroll:
         listings.append(FastScroll(assembler, screen, options.scroll))
+
+    if options.clear:
+        listings.append(FastClear(assembler, screen))
 
     if listings:
         if options.output_prefix:
