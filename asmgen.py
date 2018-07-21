@@ -992,6 +992,66 @@ class FastFont(Listing):
                 self.byte("$%02x" % data[index], 16)
 
 
+class CompiledFastFont(Listing):
+    def __init__(self, assembler, screen, font, double_buffer):
+        Listing.__init__(self, assembler)
+        self.slug = "compiledfont"
+        with open(font, 'rb') as fh:
+            self.font_data = fh.read()
+        self.num_chars = len(self.font_data) // 8
+        self.generate_table(screen, "H1", 0x2000)
+        if double_buffer:
+            self.generate_table(screen, "H2", 0x4000)
+
+    def generate_table(self, screen, suffix, hgrbase):
+        label = "COMPILEDFONT_%s" % suffix
+        self.label(label)
+
+        # Have to use self-modifying code because assembler may not allow
+        # taking the hi/lo bytes of an address - 1
+        self.comment("A = character, X = column, Y = row; A is clobbered, X&Y are not")
+        self.asm("sty scratch_0")
+        self.asm("tay")
+        self.asm("lda %s_JMP_HI,y" % label)
+        self.asm("sta %s_JMP+2" % label)
+        self.asm("lda %s_JMP_LO,y" % label)
+        self.asm("sta %s_JMP+1" % label)
+        self.asm("ldy scratch_0")
+        self.asm("lda hgrtextrow_l,y")
+        self.asm("sta hgr_ptr")
+        self.asm("lda hgrtextrow_h,y")
+        self.asm("sta hgr_ptr+1")
+        self.asm("txa")
+        self.asm("tay")
+        self.label("%s_JMP" % label)
+        self.asm("jmp $ffff\n")
+
+        # Bit-shift jump table for generic 6502
+        self.out()
+        self.label("%s_JMP_HI" % label)
+        for r in range(self.num_chars):
+            self.asm(".byte >%s_%d" % (label, r))
+        self.label("%s_JMP_LO" % label)
+        for r in range(self.num_chars):
+            self.asm(".byte <%s_%d" % (label, r))
+
+        self.out()
+        index = 0
+        for r in range(self.num_chars):
+            self.label("%s_%d" % (label, r))
+            for i in range(8):
+                self.asm("lda #$%02x" % self.font_data[index])
+                self.asm("sta (hgr_ptr),y")
+                self.asm("clc")
+                self.asm("lda #4")
+                self.asm("adc hgr_ptr+1")
+                self.asm("sta hgr_ptr+1")
+                index += 1
+            self.asm("ldy scratch_0")
+            self.asm("rts")
+        self.out()
+
+
 class HGRByLine(HGR):
     """Either a color line or a BW line, depending on the contents of each
     line.
@@ -1277,6 +1337,27 @@ class FastClear(Listing):
         self.out()
 
 
+class InsaneClear(Listing):
+    def __init__(self, assembler, screen):
+        Listing.__init__(self, assembler)
+        self.slug = "insaneclear"
+        self.generate_table(screen, 0)
+
+    def generate_table(self, screen, offset):
+        base = 0x2000 + offset
+        label = "INSANECLEAR_%x" % (base)
+        self.label(label)
+        self.comment("A clobbered")
+        self.asm("lda #$aa")
+
+        s = screen.generate_row_addresses(base)
+        for c in range(40):
+            for r in range(screen.screen_height):
+                self.asm("sta $%04x" % (s[r] + c))
+        self.asm("rts")
+        self.out()
+
+
 class RLE(Listing):
     def __init__(self, assembler, data):
         Listing.__init__(self, assembler)
@@ -1432,6 +1513,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--image", default="line", choices=["line", "color","bw"], help="Screen format used for full page image conversion (default: %(default)s)")
     parser.add_argument("-l", "--scroll", default=0, type=int, help="Unrolled loop to scroll screen (default: %(default)s)")
     parser.add_argument("--clear", action="store_true", default=False, help="Unrolled loop to clear screen (default: %(default)s)")
+    parser.add_argument("--insane-clear", action="store_true", default=False, help="Unrolled loop to clear screen (default: %(default)s)")
     parser.add_argument("--merge", type=int, nargs="*", help="Merge two HGR images, switching images at the scan line")
     parser.add_argument("--rle", action="store_true", default=False, help="Create run-length-encoded version of data (assumed to be an image)")
     parser.add_argument("--src", action="store_true", default=False, help="Create source version of binary file")
@@ -1440,6 +1522,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--double-buffer", action="store_true", default=False, help="add code blit to either page (default: page 1 only)")
     parser.add_argument("-g", "--damage", action="store_true", default=False, help="add code to report size of sprite upon return. Can be used in a damage list to restore an area from a pristine source.")
     parser.add_argument("-f", "--font", action="store", default="", help="generate a fast font blitter for text on the hgr screen using the specified binary font file")
+    parser.add_argument("--compiled-font", action="store", default="", help="generate a font-compiled fairly fast font blitter for text on the hgr screen using the specified binary font file")
     parser.add_argument("-o", "--output-prefix", default="", help="Base name to create a set of output files. If not supplied, all code will be sent to stdout.")
     parser.add_argument("files", metavar="IMAGE", nargs="*", help="a PNG image [or a list of them]. PNG files must not have an alpha channel!")
     options, extra_args = parser.parse_known_args()
@@ -1523,11 +1606,17 @@ if __name__ == "__main__":
     if options.font:
         listings.append(FastFont(assembler, screen, options.font, options.double_buffer))
 
+    if options.compiled_font:
+        listings.append(CompiledFastFont(assembler, screen, options.compiled_font, options.double_buffer))
+
     if options.scroll:
         listings.append(FastScroll(assembler, screen, options.scroll))
 
     if options.clear:
         listings.append(FastClear(assembler, screen))
+
+    if options.insane_clear:
+        listings.append(InsaneClear(assembler, screen))
 
     if listings:
         if options.output_prefix:
