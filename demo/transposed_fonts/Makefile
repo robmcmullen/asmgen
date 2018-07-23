@@ -1,6 +1,8 @@
 # Currently valid assemblers: mac65 and cc65
 ASSEMBLER = "mac65"
 
+ASMGEN = python ../../asmgen.py
+
 TARGETS = TEST1A.BIN TEST1B.BIN TEST1C.BIN TEST1D.BIN TEST2.BIN test3--transposed_font.s TEST3.BIN
 
 all: $(TARGETS)
@@ -40,7 +42,7 @@ TEST2.BIN: driver.s test2--compiled_font.s
 	atrcopy asmsgen_font_compare.dsk add $@ -f
 
 test3--transposed_font.s:
-	python ../asmgen.py -a $(ASSEMBLER) -f fatfont128.dat > test3--transposed_font.s
+	$(ASMGEN) -a $(ASSEMBLER) -f fatfont128.dat > test3--transposed_font.s
 
 TEST3.BIN: driver.s test3--transposed_font.s
 	rm -f $@
