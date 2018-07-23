@@ -22,20 +22,87 @@ bitmap font renderer, and generation for all the row/column lookup tables for
 each supported bitmap mode.
 
 
-Installing From Source
-======================
+Installation
+============
 
 The autogenerator code is written in Python and should run on any platform
-that can use python
-
-Prerequisites
--------------
+that can use python. It requires:
 
 * python 3.6 (and above)
 * numpy
 * pypng
 
+Install using the Python package manager::
+
+    pip install asmgen
+
 Starting with version 2.0, python 2 support has been dropped.
+
+
+Installing From Source
+======================
+
+To contribute bug fixes or enhancements, it would be useful to get an account
+on github and clone the source to your own account. You can then send me pull
+requests for any modifications you would like to see included.
+
+If you just want to clone my source to look at it, use::
+
+    git clone https://github.com/robmcmullen/asmgen.git
+
+
+Assembler Support
+=================
+
+* cc65 (the default)
+* MAC/65
+
+Contributors welcome for other assemblers, like Merlin, MADS, dasm, xasm, etc.
+
+
+Code Generation Capabilities
+============================
+
+* Transposed font code generator
+* Sprite compiler
+* Screen clearing
+* Screen vertical scrolling
+* Hi-res row lookup table generation
+
+Experimental (and unsupported)
+------------------------------
+
+* Font compiler (slower than the transposed font code)
+* Run-length encoding of images
+* Merge two hi-res images, switching images at specified scan line
+
+
+Running the Code Generator
+==========================
+
+You will use
+
+
+Transposed Font
+===============
+
+To generate source code for a fast font renderer, you will need a binary font
+file that is required in order to transpose the font characters and embed them
+in the source code. Then::
+
+    asmgen.py -f FONTFILENAME -o OUTPUTFILEROOT
+
+It will create two source files, the main one of interest is called
+OUTPUTFILEROOT-fastfont.s which contains the generated code and data for use of
+the transposed font. All you need is to include this file in your source and
+it's ready to go. No need to include a binary of the font file, as it's already
+included in byte data.
+
+The otherother will be a parent file that contains ``include`` statement for all the generated files from this run of ``asmgen.py``. In this case it only has one include, but if you also generate a clear screen routine and some sprite compiling, it will contain all those
+
+called OUTPUFILEROOT-driver.s that will include all the other generated files, and the specific font file source
+
+
 
 Fork me!
 ========
