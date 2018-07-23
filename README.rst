@@ -8,18 +8,20 @@ AsmGen
 Abstract
 ========
 
-AsmGen - code generator for sprites, fonts, and images for Apple ][ hi-res and
-Atari 8-bit computers
+AsmGen - 6502 assembly code generator for sprites, fonts, and images for Apple
+][ hi-res and Atari 8-bit computers
 
-This program creates 6502 (or 65c02) code for several tasks, including a sprite
-complier (based on `HiSprite <https://github.com/blondie7575/HiSprite>`_) that
-hardcodes sprite data in unrolled loops for each shifted shape. By removing
-image lookups and loops, sprites can be drawn much faster than otherwise
-possible.
+This program creates 6502 (or 65c02) code for several tasks, including a high
+speed font rendering engine and a sprite compiler. The font rendered can plot
+font glyphs (or game tiles) much faster than normal tile drawing routines. The
+sprite complier (based on `HiSprite
+<https://github.com/blondie7575/HiSprite>`_) hardcodes sprite data in unrolled
+loops for each shifted shape. By removing image lookups and loops, sprites can
+be drawn much faster than otherwise possible.
 
-Other utilities include generating code for reporting screen damage, a fast
-bitmap font renderer, and generation for all the row/column lookup tables for
-each supported bitmap mode.
+Other utilities include generating code for reporting screen damage, screen
+clearing, screen scrolling, and generation for all the row/column lookup tables
+for each supported bitmap mode.
 
 
 Installation
@@ -32,7 +34,8 @@ that can use python. It requires:
 * numpy
 * pypng
 
-Install using the Python package manager::
+the latter two of which will be installed automatically when using the Python
+package manager::
 
     pip install asmgen
 
@@ -40,19 +43,35 @@ Starting with version 2.0, python 2 support has been dropped.
 
 
 Installing From Source
-======================
+----------------------
 
 To contribute bug fixes or enhancements, it would be useful to get an account
 on github and clone the source to your own account. You can then send me pull
 requests for any modifications you would like to see included.
 
-If you just want to clone my source to look at it, use::
+If you just want to clone the source to look at it, use::
 
     git clone https://github.com/robmcmullen/asmgen.git
 
 
+Using the Code Generator
+==========================
+
+The code generator is a command line tool that creates text files that can be
+used as source code for assemblers.  Its general usage is::
+
+    asmgen.py [OPTIONS] -o ROOTNAME
+
+which will create one file called ''ROOTNAME-driver.s'' and one or more files
+containing generated code as specified by ''OPTIONS''. This driver file is a
+convenience that only exists to include all the other generated files. This
+means that your build process only needs to include ``ROOTNAME-driver.s``
+instead of needing to be updated if you add aditional code generation options.
+
 Assembler Support
-=================
+-----------------
+
+Code generation is supported for the following assemblers:
 
 * cc65 (the default)
 * MAC/65
@@ -61,7 +80,7 @@ Contributors welcome for other assemblers, like Merlin, MADS, dasm, xasm, etc.
 
 
 Code Generation Capabilities
-============================
+----------------------------
 
 * Transposed font code generator
 * Sprite compiler
@@ -77,30 +96,44 @@ Experimental (and unsupported)
 * Merge two hi-res images, switching images at specified scan line
 
 
-Running the Code Generator
-==========================
-
-You will use
-
-
 Transposed Font
 ===============
 
 To generate source code for a fast font renderer, you will need a binary font
-file that is required in order to transpose the font characters and embed them
-in the source code. Then::
+file. The code generator will embed the binary data as ``.byte`` directives (or equivalent for the chosen assembler) because the transposition requires reordering of the data. The usage is::
 
-    asmgen.py -f FONTFILENAME -o OUTPUTFILEROOT
+    asmgen.py -f FONTFILENAME -o ROOTNAME
 
-It will create two source files, the main one of interest is called
-OUTPUTFILEROOT-fastfont.s which contains the generated code and data for use of
-the transposed font. All you need is to include this file in your source and
-it's ready to go. No need to include a binary of the font file, as it's already
-included in byte data.
+It will create two source files, the ``ROOTNAME-driver.s`` file described
+above, and the file of interest called ``ROOTNAME-fastfont.s`` which contains
+the generated code and data for use of the transposed font.  The entry point
+look like this::
 
-The otherother will be a parent file that contains ``include`` statement for all the generated files from this run of ``asmgen.py``. In this case it only has one include, but if you also generate a clear screen routine and some sprite compiling, it will contain all those
+    FASTFONT_H1 ; A = character, X = column, Y = row; A is clobbered, X&Y are not
+            pha
+            lda FASTFONT_H1_JMP_HI,y
+            sta FASTFONT_H1_JMP+2
+            lda FASTFONT_H1_JMP_LO,y
+            sta FASTFONT_H1_JMP+1
+            sty scratch_0
+            pla
+            tay
+    FASTFONT_H1_JMP
+            jmp $ffff
 
-called OUTPUFILEROOT-driver.s that will include all the other generated files, and the specific font file source
+``FASTFONT_H1_JMP`` is a jump table, broken into high and low bytes.
+
+The input is described in the comment: the glyph in the accumulator, column
+value (0-39) in the X register, and row value (0-23) in the Y register. Note
+that no error checking is done here, so it will happily trash data in some
+unintended part of RAM if you pass it values that are out of range.
+
+Use it like this::
+
+    lda #65  ; ASCII character 'A'
+    ldx #20  ; column 20 (counting from zero)
+    ldy #5   ; row 5 (counting from zero)
+    jsr FASTFONT_H1
 
 
 
