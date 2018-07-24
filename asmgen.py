@@ -1500,7 +1500,7 @@ if __name__ == "__main__":
 ; GPLv3.)
 '''
 
-    parser = argparse.ArgumentParser(description="Sprite compiler for 65C02/6502 to generate assembly code to render all shifts of the given sprite, optionally with exclusive-or drawing (if background will be non-black). Generated code has conditional compilation directives for the CC65 assembler to allow the same file to be compiled for either architecture.")
+    parser = argparse.ArgumentParser(description="Code generator for 65C02/6502 to generate assembly code for a number of tasks, including fast font rendering to the hi-res screen and sprite compiling. The sprite compiler will render all shifts of the given sprite, optionally with exclusive-or drawing (if background will be non-black). Generated code has conditional compilation directives for the CC65 assembler to allow the same file to be compiled for either architecture.")
     parser.add_argument("-v", "--verbose", default=0, action="count")
     parser.add_argument("-c", "--cols", action="store_true", default=False, help="output column (x position) lookup tables")
     parser.add_argument("-r", "--rows", action="store_true", default=False, help="output row (y position) lookup tables")
