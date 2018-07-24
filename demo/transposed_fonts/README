@@ -1,0 +1,5 @@
+This code is designed for the ATasm assembler, in MAC/65 format.
+
+To run the Makefile, you will need atrcopy and pyatasm installed, i.e.:
+
+    pip install atrcopy pyatasm
