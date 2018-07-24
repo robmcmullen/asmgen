@@ -28,14 +28,14 @@ colortest.dsk: $(ASMGEN_SRC) colortest.s bwsprite.s
 	atasm -ocolortest.xex colortest.s -Lcolortest.var -gcolortest.lst
 	atrcopy colortest.dsk boot -b colortest.xex --brun 6000 -f
 
-cpbg-asmgen-driver.s: $(ASMGEN_SRC) $(BWSPRITE)
+cpbg-asmgen-driver.s: $(ASMGEN_SRC) $(BWSPRITE) fatfont.s
 	$(ASMGEN) -s hgrbw -m -k -d -g -f ../../fonts/fatfont128.dat -o cpbg $(BWSPRITE) $(COLORSPRITE)
 
 cpbg.xex: cpbg.s cpbg-asmgen-driver.s
 	atasm -mae -ocpbg.xex cpbg.s -Lcpbg.var -gcpbg.lst
 
-cpbg.dsk: $(ASMGEN_SRC) cpbg.xex
-	atrcopy cpbg.dsk boot -b cpbg.xex --brun 6000 -f
+cpbg.dsk: $(ASMGEN_SRC) cpbg.s cpbg-asmgen-driver.s
+	atrcopy cpbg.dsk boot -f -s cpbg.s -r 0x6000
 
 fonttest-asmgen-driver.s: $(ASMGEN_SRC) ../../fonts/fatfont128.dat
 	$(ASMGEN) -s hgrbw -f ../../fonts/fatfont128.dat -r -o fonttest
@@ -44,8 +44,7 @@ fatfont.s:
 	$(ASMGEN) --src ../../fonts/fatfont128.dat > fatfont.s
 
 fonttest.dsk: fonttest.s fatfont.s fonttest-asmgen-driver.s slowfont.s
-	atasm -ofonttest.xex fonttest.s -Lfonttest.var -gfonttest.lst
-	atrcopy fonttest.dsk boot -b fonttest.xex --brun 6000 -f
+	atrcopy fonttest.dsk boot -s fonttest.s --brun 6000 -f
 
 clean:
 	rm -f rowlookup.s collookupbw.s collookupcolor.s
