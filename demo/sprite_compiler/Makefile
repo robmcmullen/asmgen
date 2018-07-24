@@ -1,43 +1,47 @@
-COLORSPRITE = ../sprites/moldy_burger.png
-BWSPRITE = ../sprites/apple-sprite9x11.png
-ASMGEN = python ../../asmgen.py
+COLORSPRITE = ../../sprites/moldy_burger.png
+BWSPRITE = ../../sprites/apple-sprite9x11.png
+ASMGEN_SRC = ../../asmgen.py
+ASMGEN = python $(ASMGEN_SRC) -a mac65 -p 6502
 
 all: cpbg.dsk fonttest.dsk
 
-rowlookup.s: asmgen.py
-	$(ASMGEN) -a mac65 -p 6502 -r > rowlookup.s
+rowlookup.s: $(ASMGEN_SRC)
+	$(ASMGEN) -r > rowlookup.s
 
-collookupbw.s: asmgen.py
-	$(ASMGEN) -a mac65 -p 6502 -s hgrbw -c > collookupbw.s
+collookupbw.s: $(ASMGEN_SRC)
+	$(ASMGEN) -s hgrbw -c > collookupbw.s
 
-collookupcolor.s: asmgen.py
-	$(ASMGEN) -a mac65 -p 6502 -c > collookupcolor.s
+collookupcolor.s: $(ASMGEN_SRC)
+	$(ASMGEN) -c > collookupcolor.s
 
-bwsprite.s: asmgen.py collookupbw.s rowlookup.s $(BWSPRITE)
-	$(ASMGEN) -a mac65 -p 6502 -s hgrbw $(BWSPRITE) -n bwsprite -m -b > bwsprite.s
+bwsprite.s: $(ASMGEN_SRC) collookupbw.s rowlookup.s $(BWSPRITE)
+	$(ASMGEN) -s hgrbw $(BWSPRITE) -n bwsprite -m -b > bwsprite.s
 
-colorsprite.s: asmgen.py collookupcolor.s rowlookup.s $(COLORSPRITE)
-	$(ASMGEN) -a mac65 -p 6502 -s hgrcolor $(COLORSPRITE) -n colorsprite -m > colorsprite.s
+colorsprite.s: $(ASMGEN_SRC) collookupcolor.s rowlookup.s $(COLORSPRITE)
+	$(ASMGEN) -s hgrcolor $(COLORSPRITE) -n colorsprite -m > colorsprite.s
 
-bwtest.dsk: asmgen.py bwtest.s bwsprite.s
+bwtest.dsk: $(ASMGEN_SRC) bwtest.s bwsprite.s
 	atasm -obwtest.xex bwtest.s -Lbwtest.var -gbwtest.lst
 	atrcopy bwtest.dsk boot -b bwtest.xex --brun 6000 -f
 
-colortest.dsk: asmgen.py colortest.s bwsprite.s
+colortest.dsk: $(ASMGEN_SRC) colortest.s bwsprite.s
 	atasm -ocolortest.xex colortest.s -Lcolortest.var -gcolortest.lst
 	atrcopy colortest.dsk boot -b colortest.xex --brun 6000 -f
 
-cpbg-asmgen-driver.s: asmgen.py $(BWSPRITE)
-	$(ASMGEN) -a mac65 -p 6502 -s hgrbw -m -k -d -g -f fatfont128.dat -o cpbg $(BWSPRITE) $(COLORSPRITE)
+cpbg-asmgen-driver.s: $(ASMGEN_SRC) $(BWSPRITE)
+	$(ASMGEN) -s hgrbw -m -k -d -g -f ../../fonts/fatfont128.dat -o cpbg $(BWSPRITE) $(COLORSPRITE)
 
 cpbg.xex: cpbg.s cpbg-asmgen-driver.s
 	atasm -mae -ocpbg.xex cpbg.s -Lcpbg.var -gcpbg.lst
 
-cpbg.dsk: asmgen.py cpbg.xex
+cpbg.dsk: $(ASMGEN_SRC) cpbg.xex
 	atrcopy cpbg.dsk boot -b cpbg.xex --brun 6000 -f
 
-fonttest-asmgen-driver.s: asmgen.py fatfont128.dat
-	$(ASMGEN) -a mac65 -p 6502 -s hgrbw -f fatfont128.dat -r -o fonttest
+fonttest-asmgen-driver.s: $(ASMGEN_SRC) ../../fonts/fatfont128.dat
+	$(ASMGEN) -s hgrbw -f ../../fonts/fatfont128.dat -r -o fonttest
+
+fatfont.s:
+	$(ASMGEN) --src ../../fonts/fatfont128.dat > fatfont.s
 
 fonttest.dsk: fonttest.s fatfont.s fonttest-asmgen-driver.s slowfont.s
 	atasm -ofonttest.xex fonttest.s -Lfonttest.var -gfonttest.lst

@@ -16,10 +16,10 @@ slowfont ; A = character, X = column, Y = row; A is clobbered, X&Y are not
     rol font_ptr + 1
 
     clc         ; add font table address to get pointer inside font table
-    lda #<fatfont ; would be slightly faster if page aligned because you
+    lda #<FONTS_FATFONT128_START ; would be slightly faster if page aligned because you
     adc font_ptr  ; could just store the low byte
     sta slowfont_loop_smc+1
-    lda #>fatfont
+    lda #>FONTS_FATFONT128_START
     adc font_ptr+1
     sta slowfont_loop_smc+2
 

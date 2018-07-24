@@ -703,5 +703,5 @@ textrows_h
         .byte $04, $04, $05, $05, $06, $06, $07, $07
 
 
-.include cpbg-sprite-driver.s
+.include cpbg-asmgen-driver.s
 .include fatfont.s

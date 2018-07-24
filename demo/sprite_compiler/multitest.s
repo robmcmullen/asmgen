@@ -330,4 +330,4 @@ sprite_diry
 
 
 
-.include multitest-sprite-driver.s
+.include multitest-asmgen-driver.s

@@ -166,7 +166,7 @@ The sample font is modified from Michael Pohoreski's `excellent tutorial on
 Apple II fonts <https://github.com/Michaelangel007/apple2_hgr_font_tutorial>`_.
 
 
-Disclaimer
+License
 ==========
 
 AsmGen, the 6502 code generator sponsored by the Player/Missile Podcast
