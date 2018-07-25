@@ -934,15 +934,16 @@ class BackingStoreDriver(Listing):
 
 
 class FastFont(Listing):
-    def __init__(self, assembler, screen, font, double_buffer):
+    def __init__(self, assembler, screen, font, double_buffer, byte_width=1, byte_height=8):
         Listing.__init__(self, assembler)
         self.slug = "fastfont"
-        self.generate_table(screen, "H1", 0x2000)
+        self.row_slug = "TransposedFontRow"
+        self.generate_table(screen, "H1", 0x2000, byte_width, byte_height)
         if double_buffer:
-            self.generate_table(screen, "H2", 0x4000)
-        self.generate_transposed_font(screen, font)
+            self.generate_table(screen, "H2", 0x4000, byte_width, byte_height)
+        self.generate_transposed_font(screen, font, byte_width, byte_height)
 
-    def generate_table(self, screen, suffix, hgrbase):
+    def generate_table(self, screen, suffix, hgrbase, byte_width, byte_height):
         label = "FASTFONT_%s" % suffix
         self.label(label)
 
@@ -950,46 +951,51 @@ class FastFont(Listing):
         # taking the hi/lo bytes of an address - 1
         self.comment("A = character, X = column, Y = row; A is clobbered, X&Y are not")
         self.asm("pha")
-        self.asm("lda %s_JMP_HI,y" % label)
-        self.asm("sta %s_JMP+2" % label)
-        self.asm("lda %s_JMP_LO,y" % label)
-        self.asm("sta %s_JMP+1" % label)
+        self.asm(f"lda {label}_JMP_HI,y")
+        self.asm(f"sta {label}_JMP+2")
+        self.asm(f"lda {label}_JMP_LO,y")
+        self.asm(f"sta {label}_JMP+1")
         self.asm("sty scratch_0")
         self.asm("pla")
         self.asm("tay")
-        self.label("%s_JMP" % label)
+        self.label(f"{label}_JMP")
         self.asm("jmp $ffff\n")
+
+        num_rows = screen.screen_height // byte_height
 
         # Bit-shift jump table for generic 6502
         self.out()
-        self.label("%s_JMP_HI" % label)
-        for r in range(24):
-            self.asm(".byte >%s_%d" % (label, r))
-        self.label("%s_JMP_LO" % label)
-        for r in range(24):
-            self.asm(".byte <%s_%d" % (label, r))
+        self.label(f"{label}_JMP_HI")
+        for r in range(num_rows):
+            self.asm(f".byte >{label}_{r}")
+        self.label(f"{label}_JMP_LO")
+        for r in range(num_rows):
+            self.asm(f".byte <{label}_{r}")
 
         self.out()
         hgr1 = screen.generate_row_addresses(hgrbase)
-        for r in range(24):
-            self.label("%s_%d" % (label, r))
-            for i in range(8):
-                self.asm("lda TransposedFontRow%d,y" % i)
-                self.asm("sta $%04x,x" % (hgr1[r*8 + i]))
+        for r in range(num_rows):
+            self.label(f"{label}_{r}")
+            for b in range(byte_width):
+                for h in range(byte_height):
+                    self.asm(f"lda {self.row_slug}{b}_{h},y")
+                    self.asm("sta $%04x,x" % (hgr1[r*byte_height + h] + b))
             self.asm("ldy scratch_0")
             self.asm("rts")
         self.out()
 
-    def generate_transposed_font(self, screen, font):
+    def generate_transposed_font(self, screen, font, byte_width, byte_height):
         with open(font, 'rb') as fh:
             data = fh.read()
         num_bytes = len(data)
-        num_chars = num_bytes // 8
-        for r in range(8):
-            self.label("TransposedFontRow%d" % r)
-            for i in range(num_chars):
-                index = i * 8 + r
-                self.byte("$%02x" % data[index], 16)
+        char_size = byte_height * byte_width
+        num_chars = num_bytes // char_size
+        for h in range(byte_height):
+            for b in range(byte_width):
+                self.label(f"{self.row_slug}{b}_{h}")
+                for i in range(num_chars):
+                    index = i * char_size + (h * byte_width + b)
+                    self.byte("$%02x" % data[index], 16)
 
 
 class CompiledFastFont(Listing):
@@ -1522,6 +1528,7 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--double-buffer", action="store_true", default=False, help="add code blit to either page (default: page 1 only)")
     parser.add_argument("-g", "--damage", action="store_true", default=False, help="add code to report size of sprite upon return. Can be used in a damage list to restore an area from a pristine source.")
     parser.add_argument("-f", "--font", action="store", default="", help="generate a fast font blitter for text on the hgr screen using the specified binary font file")
+    parser.add_argument("--font-size", "--fs", action="store", default="1x8", help="specify font dimensions in bytes (default: %(default)s)")
     parser.add_argument("--compiled-font", action="store", default="", help="generate a font-compiled fairly fast font blitter for text on the hgr screen using the specified binary font file")
     parser.add_argument("-o", "--output-prefix", default="", help="Base name to create a set of output files. If not supplied, all code will be sent to stdout.")
     parser.add_argument("files", metavar="IMAGE", nargs="*", help="a PNG image [or a list of them]. PNG files must not have an alpha channel!")
@@ -1603,8 +1610,16 @@ if __name__ == "__main__":
     if options.cols:
         listings.append(ColLookup(assembler, screen))
 
+    if options.font_size:
+        w, h = options.font_size.lower().split("x", 1)
+        w = int(w)
+        h = int(h)
+    else:
+        w = 1
+        h = 8
+
     if options.font:
-        listings.append(FastFont(assembler, screen, options.font, options.double_buffer))
+        listings.append(FastFont(assembler, screen, options.font, options.double_buffer, w, h))
 
     if options.compiled_font:
         listings.append(CompiledFastFont(assembler, screen, options.compiled_font, options.double_buffer))

@@ -3,7 +3,7 @@ ASSEMBLER = "mac65"
 
 ASMGEN = python ../../asmgen.py
 
-TARGETS = TEST1A.BIN TEST1B.BIN TEST1C.BIN TEST1D.BIN TEST2.BIN test3--transposed_font.s TEST3.BIN
+TARGETS = TEST1A.BIN TEST1B.BIN TEST1C.BIN TEST1D.BIN TEST2.BIN test3--transposed_font.s TEST3.BIN tiles2x2a.s TILES2X2A.BIN tiles4x4a.s TILES4X4A.BIN
 
 all: $(TARGETS)
 
@@ -45,6 +45,24 @@ test3--transposed_font.s:
 	$(ASMGEN) -a $(ASSEMBLER) -f fatfont128.dat > test3--transposed_font.s
 
 TEST3.BIN: driver.s test3--transposed_font.s
+	rm -f $@
+	cat $^ > temp.s
+	atrcopy . assemble -f -s temp.s -r 0x5000 -o $@
+	atrcopy asmsgen_font_compare.dsk add $@ -f
+
+tiles2x2a.s: ../../tiles/tiles_ramp_2x2.dat
+	$(ASMGEN) -a $(ASSEMBLER) -f ../../tiles/tiles_ramp_2x2.dat --fs 2x16 > tiles2x2a.s
+
+TILES2X2A.BIN: driver_2x2_tiles.s tiles2x2a.s
+	rm -f $@
+	cat $^ > temp.s
+	atrcopy . assemble -f -s temp.s -r 0x5000 -o $@
+	atrcopy asmsgen_font_compare.dsk add $@ -f
+
+tiles4x4a.s: ../../tiles/tiles_ramp_4x4.dat
+	$(ASMGEN) -a $(ASSEMBLER) -f ../../tiles/tiles_ramp_4x4.dat --fs 4x32 > tiles4x4a.s
+
+TILES4X4A.BIN: driver_4x4_tiles.s tiles4x4a.s
 	rm -f $@
 	cat $^ > temp.s
 	atrcopy . assemble -f -s temp.s -r 0x5000 -o $@
