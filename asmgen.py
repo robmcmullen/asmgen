@@ -58,6 +58,7 @@ def slugify(s):
 class AssemblerSyntax(object):
     extension = "s"
     comment_char = ";"
+    use_16_bit = False
 
     def asm(self, text):
         return "\t%s" % text
@@ -110,6 +111,14 @@ class CC65(AssemblerSyntax):
 
     def label(self, text):
         return "%s:" % text
+
+
+class CSource(AssemblerSyntax):
+    extension = "c"
+    use_16_bit = True
+
+    def label(self, text):
+        return f"{text} = "
 
 
 class Listing(object):
@@ -684,7 +693,20 @@ class RowLookup(Listing):
     def __init__(self, assembler, screen):
         Listing.__init__(self, assembler)
         self.slug = "hgrrows"
-        self.generate_y(screen)
+        if assembler.use_16_bit:
+            self.generate_raw(screen)
+        else:
+            self.generate_y(screen)
+
+    def generate_raw(self, screen):
+        self.label("lines_page1")
+        for addr in screen.generate_row_addresses(0x2000):
+            self.word("0x%04x" % addr, 8)
+
+        self.out("\n")
+        self.label("lines_page2")
+        for addr in screen.generate_row_addresses(0x4000):
+            self.word("0x%04x" % addr, 8)
 
     def generate_y(self, screen):
         self.label("HGRROWS_H1")
@@ -1513,7 +1535,7 @@ if __name__ == "__main__":
     parser.add_argument("-x", "--xdraw", action="store_true", default=False, help="use XOR for sprite drawing")
     parser.add_argument("-m", "--mask", action="store_true", default=False, help="use mask for sprite drawing")
     parser.add_argument("-b", "--backing-store", action="store_true", default=False, help="add code to store background")
-    parser.add_argument("-a", "--assembler", default="cc65", choices=["cc65","mac65"], help="Assembler syntax (default: %(default)s)")
+    parser.add_argument("-a", "--assembler", default="cc65", choices=["cc65","mac65", "c"], help="Assembler syntax (default: %(default)s)")
     parser.add_argument("-p", "--processor", default="any", choices=["any","6502", "65C02"], help="Processor type (default: %(default)s)")
     parser.add_argument("-s", "--screen", default="hgrcolor", choices=["hgrcolor","hgrbw"], help="Screen format (default: %(default)s)")
     parser.add_argument("-i", "--image", default="line", choices=["line", "color","bw"], help="Screen format used for full page image conversion (default: %(default)s)")
@@ -1538,6 +1560,8 @@ if __name__ == "__main__":
         assembler = CC65()
     elif options.assembler.lower() == "mac65":
         assembler = Mac65()
+    elif options.assembler.lower() == "c":
+        assembler = CSource()
     else:
         print(f"Unknown assembler {options.assembler}")
         parser.print_help()
