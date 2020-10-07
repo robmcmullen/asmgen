@@ -58,6 +58,7 @@ def slugify(s):
 class AssemblerSyntax(object):
     extension = "s"
     comment_char = ";"
+    comma_string = ", "
     use_16_bit = False
 
     def asm(self, text):
@@ -120,6 +121,24 @@ class CSource(AssemblerSyntax):
     def label(self, text):
         return f"{text} = "
 
+class Merlin(AssemblerSyntax):
+    extension = "S"
+    comma_string = ","
+
+    def byte(self, text):
+        return self.asm("db %s" % text)
+
+    def word(self, text):
+        return self.asm("dw %s" % text)
+
+    def address(self, text):
+        return self.asm("da %s" % text)
+
+    def origin(self, text):
+        return self.asm("org %s" % text)   
+
+    def include(self, text):
+        return self.asm("PUT %s" % text)
 
 class Listing(object):
     def __init__(self, assembler, slug="asmgen-driver"):
@@ -187,7 +206,7 @@ class Listing(object):
 
     def flush_stash(self):
         if self.current is not None and len(self.stash_list) > 0:
-            self.lines.append(self.current(", ".join(self.stash_list)))
+            self.lines.append(self.current(self.assembler.comma_string.join(self.stash_list)))
         self.current = None
         self.stash_list = []
         self.desired_count = 1
@@ -1535,7 +1554,7 @@ if __name__ == "__main__":
     parser.add_argument("-x", "--xdraw", action="store_true", default=False, help="use XOR for sprite drawing")
     parser.add_argument("-m", "--mask", action="store_true", default=False, help="use mask for sprite drawing")
     parser.add_argument("-b", "--backing-store", action="store_true", default=False, help="add code to store background")
-    parser.add_argument("-a", "--assembler", default="cc65", choices=["cc65","mac65", "c"], help="Assembler syntax (default: %(default)s)")
+    parser.add_argument("-a", "--assembler", default="cc65", choices=["cc65","mac65", "merlin", "c",], help="Assembler syntax (default: %(default)s)")
     parser.add_argument("-p", "--processor", default="any", choices=["any","6502", "65C02"], help="Processor type (default: %(default)s)")
     parser.add_argument("-s", "--screen", default="hgrcolor", choices=["hgrcolor","hgrbw"], help="Screen format (default: %(default)s)")
     parser.add_argument("-i", "--image", default="line", choices=["line", "color","bw"], help="Screen format used for full page image conversion (default: %(default)s)")
@@ -1560,6 +1579,10 @@ if __name__ == "__main__":
         assembler = CC65()
     elif options.assembler.lower() == "mac65":
         assembler = Mac65()
+    elif options.assembler.lower() == "merlin":
+        assembler = Merlin()
+        if options.processor.lower() == "any":
+            options.processor = "6502" # no processor conditional support.
     elif options.assembler.lower() == "c":
         assembler = CSource()
     else:
