@@ -11,7 +11,7 @@ with open("README.rst", "r") as fp:
 scripts = ["asmgen.py"]
 
 setup(name="asmgen",
-        version="2.0",
+        version="2.1",
         author="Rob McMullen",
         author_email="feedback@playermissile.com",
         url="https://github.com/robmcmullen/asmgen",
