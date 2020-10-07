@@ -75,8 +75,9 @@ Code generation is supported for the following assemblers:
 
 * cc65 (the default)
 * MAC/65
+* Merlin (from `ksherlock <https://github.com/ksherlock>`_)
 
-Contributors welcome for other assemblers, like Merlin, MADS, dasm, xasm, etc.
+Contributors welcome for other assemblers, like MADS, dasm, xasm, etc.
 
 
 Code Generation Capabilities
@@ -170,7 +171,7 @@ License
 ==========
 
 AsmGen, the 6502 code generator sponsored by the Player/Missile Podcast
-Copyright (c) 2017-2018 Rob McMullen
+Copyright (c) 2017-2020 Rob McMullen
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
