@@ -171,27 +171,17 @@ License
 ==========
 
 AsmGen, the 6502 code generator sponsored by the Player/Missile Podcast
-Copyright (c) 2017-2020 Rob McMullen
+Copyright (c) 2017-2021 Rob McMullen
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 
 Generated Code License
 ----------------------
 
-While the code for AsmGen itself is licensed under the GPLv3, the code it
+While the code for AsmGen itself is licensed under the MPL 2.0, the code it
 produces is licensed under the the Creative Commons Attribution 4.0
 International (CC BY 4.0), so you are free to use the generated code for
 commercial or non-commercial purposes.
